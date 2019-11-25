@@ -21,8 +21,10 @@
 package org.jitsi.jirecon;
 
 import java.util.*;
-import java.util.concurrent.*;
-import org.jitsi.jirecon.TaskManagerEvent.*;
+
+import org.jitsi.jirecon.task.TaskManager;
+import org.jitsi.jirecon.task.TaskManagerEvent;
+import org.jitsi.jirecon.task.TaskManagerEvent.*;
 
 
 /**
@@ -35,15 +37,11 @@ import org.jitsi.jirecon.TaskManagerEvent.*;
  */
 public class Main
 {
-    /**
+
+	/**
      * Prefix of configuration parameter.
      */
     private static final String CONF_ARG_NAME = "--conf=";
-
-    /**
-     * Prefix of time parameter.
-     */
-    private static final String TIME_ARG_NAME = "--time=";
 
     /**
      * Configuration file path.
@@ -51,15 +49,34 @@ public class Main
     private static String conf;
 
     /**
-     * How many seconds each recording task will persist.
-     */
-    private static long time;
-    
-    /**
      * The number of recording task.
      */
     private static int taskCount;
 
+    /**
+     * Sync object
+     */
+    private static Object syncRoot = new Object();
+
+    private static class MainJireconEventListener implements JireconEventListener {
+        @Override
+        public void handleEvent(TaskManagerEvent evt)
+        {
+            if (evt.getType() == TaskManagerEvent.Type.TASK_ABORTED || evt.getType() == TaskManagerEvent.Type.TASK_FINISED)
+            {
+                System.out.println("Task: " + evt.getMucJid() + " " + evt.getType());
+                
+                if (--taskCount == 0)
+                {
+                    synchronized (syncRoot)
+                    {
+                        syncRoot.notifyAll();
+                    }
+                }
+            }
+        }
+    }
+   
     /**
      * Application entry.
      * 
@@ -76,54 +93,32 @@ public class Main
     public static void main(String[] args)
     {
         conf = null;
-        time = -1;
         List<String> mucJids = new ArrayList<String>();
-        final Object syncRoot = new Object();
 
         for (String arg : args)
         {
             if (arg.startsWith(CONF_ARG_NAME))
                 conf = arg.substring(CONF_ARG_NAME.length());
-            else if (arg.startsWith(TIME_ARG_NAME))
-                time = Long.valueOf(arg.substring(TIME_ARG_NAME.length()));
             else
                 mucJids.add(arg);
         }
 
+        // Debug
         if (mucJids.size() == 0)
         	mucJids.add("testroom");
 
-        taskCount = mucJids.size();
-        if (0 == taskCount)
+        // no task ?
+        if ((taskCount = mucJids.size()) == 0)
         {
             System.out.println("You have to specify at least one conference jid to record, exit.");
             return;
         }
-        if (null == conf)
+        if (conf == null)
             conf = "jirecon.properties";
 
         final TaskManager jirecon = new TaskManager();
         
-        jirecon.addEventListener(new JireconEventListener()
-        {
-            @Override
-            public void handleEvent(TaskManagerEvent evt)
-            {
-                if (evt.getType() == TaskManagerEvent.Type.TASK_ABORTED || evt.getType() == TaskManagerEvent.Type.TASK_FINISED)
-                {
-                    taskCount--;
-                    System.out.println("Task: " + evt.getMucJid() + " " + evt.getType());
-                    
-                    if (0 == taskCount)
-                    {
-                        synchronized (syncRoot)
-                        {
-                            syncRoot.notifyAll();
-                        }
-                    }
-                }
-            }
-        });
+        jirecon.addEventListener(new MainJireconEventListener());
 
         try
         {
@@ -137,31 +132,6 @@ public class Main
 
         for (String jid : mucJids)
             jirecon.startJireconTask(jid);
-        
-        new Thread(new Runnable()
-        {
-
-        	@Override
-            public void run()
-            {
-                if (time > 0)
-                {
-                    try
-                    {
-                        TimeUnit.SECONDS.sleep(time);
-                    }
-                    catch (InterruptedException e)
-                    {
-                        e.printStackTrace();
-                    }
-                    synchronized (syncRoot)
-                    {
-                        syncRoot.notifyAll();
-                    }
-                }
-            }
-            
-        }).start();
 
         try
         {
@@ -181,4 +151,5 @@ public class Main
         jirecon.uninit();
         System.out.println("JireconLauncher exit.");
     }
+
 }

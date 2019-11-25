@@ -41,7 +41,8 @@ import org.jitsi.xmpp.extensions.jingle.RtpDescriptionPacketExtension;
  */
 public class JinglePacketParser
 {
-    /**
+
+	/**
      * Get the content packet extension from a <tt>JingleIQ</tt> of specified
      * <tt>MediaType</tt>.
      * 
@@ -52,7 +53,7 @@ public class JinglePacketParser
      */
     public static ContentPacketExtension getContentPacketExt(JingleIQ jiq, MediaType mediaType)
     {
-        if (null == jiq || null == mediaType)
+        if (jiq == null || mediaType == null)
             return null;
 
         for (ContentPacketExtension c : jiq.getContentList())
@@ -74,8 +75,7 @@ public class JinglePacketParser
      */
     public static RtpDescriptionPacketExtension getDescriptionPacketExt(ContentPacketExtension content)
     {
-        return content == null ? null : content
-            .getFirstChildOfType(RtpDescriptionPacketExtension.class);
+        return content == null ? null : content.getFirstChildOfType(RtpDescriptionPacketExtension.class);
     }
 
     /**
@@ -89,15 +89,13 @@ public class JinglePacketParser
      */
     public static IceUdpTransportPacketExtension getTransportPacketExt(JingleIQ jiq, MediaType mediaType)
     {
-        if (null == jiq || null == mediaType)
+        if (jiq == null || mediaType == null)
             return null;
 
         for (ContentPacketExtension c : jiq.getContentList())
         {
             if (mediaType.toString().equalsIgnoreCase(c.getName()))
-            {
                 return c.getFirstChildOfType(IceUdpTransportPacketExtension.class);
-            }
         }
 
         return null;
@@ -113,14 +111,12 @@ public class JinglePacketParser
      * @return map between <tt>MediaFormat</tt> and dynamic payload type id.
      *         Null if no associated packet was found.
      */
-    public static Map<MediaFormat, Byte> getFormatAndDynamicPTs(JingleIQ jiq,
-        MediaType mediaType)
+    public static Map<MediaFormat, Byte> getFormatAndDynamicPTs(JingleIQ jiq, MediaType mediaType)
     {
-        if (null == jiq || null == mediaType)
+        if (jiq == null || mediaType == null)
             return null;
 
-        final Map<MediaFormat, Byte> formatAndPTs =
-            new HashMap<MediaFormat, Byte>();
+        final Map<MediaFormat, Byte> formatAndPTs = new HashMap<MediaFormat, Byte>();
         final MediaFormatFactoryImpl fmtFactory = new MediaFormatFactoryImpl();
 
         List<PayloadTypePacketExtension> pts = getPayloadTypePacketExts(jiq, mediaType);
@@ -129,8 +125,7 @@ public class JinglePacketParser
 
         for (PayloadTypePacketExtension payloadTypePacketExt : pts)
         {
-            MediaFormat format =
-                fmtFactory.createMediaFormat(payloadTypePacketExt.getName(),
+            MediaFormat format = fmtFactory.createMediaFormat(payloadTypePacketExt.getName(),
                     payloadTypePacketExt.getClockrate(),
                     payloadTypePacketExt.getChannels());
             if (format != null)
@@ -150,7 +145,7 @@ public class JinglePacketParser
      */
     public static DtlsFingerprintPacketExtension getFingerprintPacketExt(JingleIQ jiq, MediaType mediaType)
     {
-        if (null == jiq || null == mediaType)
+        if (jiq == null || mediaType == null)
             return null;
 
         IceUdpTransportPacketExtension transport = null;
@@ -159,8 +154,7 @@ public class JinglePacketParser
         if (null == transport)
             return null;
 
-        return transport
-            .getFirstChildOfType(DtlsFingerprintPacketExtension.class);
+        return transport.getFirstChildOfType(DtlsFingerprintPacketExtension.class);
     }
 
     /**
@@ -172,7 +166,7 @@ public class JinglePacketParser
      */
     public static MediaType[] getSupportedMediaTypes(JingleIQ jiq)
     {
-        if (null == jiq)
+        if (jiq == null)
             return null;
 
         MediaType[] mediaTypes = new MediaType[jiq.getContentList().size()];
@@ -223,4 +217,5 @@ public class JinglePacketParser
     {
         return getDescriptionPacketExt(getContentPacketExt(jiq, mediaType));
     }
+    
 }

@@ -73,8 +73,7 @@ public class WebRtcDataStreamManager
     /**
      * The pool of <tt>Thread</tt>s which run <tt>SctpConnection</tt>s.
      */
-    private static final ExecutorService threadPool = ExecutorUtils
-        .newCachedThreadPool(true, WebRtcDataStreamManager.class.getName());
+    private static final ExecutorService threadPool = ExecutorUtils.newCachedThreadPool(true, WebRtcDataStreamManager.class.getName());
 
     /**
      * Indicates whether the STCP association is ready and has not been ended by
@@ -570,7 +569,7 @@ public class WebRtcDataStreamManager
             {
                 WebRtcDataStream channel = getChannel(sid);
 
-                if (null == channel)
+                if (channel == null)
                     return;
 
                 // WebRTC Binary

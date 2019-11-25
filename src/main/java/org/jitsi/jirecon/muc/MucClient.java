@@ -17,15 +17,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon;
+package org.jitsi.jirecon.muc;
 
 import java.util.*;
 
 import net.java.sip.communicator.util.*;
 
-import org.jitsi.jirecon.TaskEvent.*;
-import org.jitsi.jirecon.TaskManagerEvent.JireconEventListener;
 import org.jitsi.jirecon.protocol.extension.*;
+import org.jitsi.jirecon.task.Endpoint;
+import org.jitsi.jirecon.task.TaskEvent;
+import org.jitsi.jirecon.task.TaskManagerEvent;
+import org.jitsi.jirecon.task.TaskEvent.*;
+import org.jitsi.jirecon.task.TaskManagerEvent.JireconEventListener;
 import org.jitsi.service.libjitsi.*;
 import org.jitsi.service.neomedia.*;
 import org.jitsi.service.neomedia.format.*;
@@ -46,10 +49,8 @@ import org.jitsi.xmpp.extensions.jingle.SctpMapExtension;
 import org.jivesoftware.smack.*;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
-import org.jivesoftware.smack.filter.*;
-import org.jivesoftware.smack.iqrequest.IQRequestHandler;
+import org.jivesoftware.smack.filter.StanzaFilter;
 import org.jivesoftware.smack.packet.*;
-import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smack.packet.XMPPError.Condition;
 import org.jivesoftware.smackx.muc.*;
 import org.jivesoftware.smackx.muc.packet.MUCUser;
@@ -65,14 +66,13 @@ import org.jxmpp.jid.parts.Resourcepart;
  * @author Boris Grozev
  * 
  */
-public class JingleSessionManager
-    implements JireconEventListener
+public final class MucClient implements JireconEventListener
 {
 
 	/**
      * The <tt>Logger</tt>, used to log messages to standard output.
      */
-    private static final Logger logger = Logger.getLogger(JingleSessionManager.class.getName());
+    private static final Logger logger = Logger.getLogger(MucClient.class.getName());
     
     /**
      * Maximum wait time in milliseconds.
@@ -84,7 +84,7 @@ public class JingleSessionManager
      * to the MUC. Not to be confused with the ID within the room.
      */
     private static final String NICKNAME = "Jirecon Recorder";
-    
+
     /**
      * The <tt>XMPPConnection</tt> is used to send/receive XMPP packets.
      */
@@ -120,53 +120,21 @@ public class JingleSessionManager
     /**
      * <tt>Endpoint</tt>s in the meeting.
      */
-    private final Map<Jid, EndpointInfo> endpoints = new HashMap<Jid, EndpointInfo>();
+    private final Map<Jid, Endpoint> endpoints = new HashMap<Jid, Endpoint>();
 
-    private StanzaListener sendingListener;
     private StanzaListener receivingListener;
-
+    
     /**
      * Initialize <tt>JireconSession</tt>.
      * 
      * @param connection is used for send/receive XMPP packet.
+     * @throws Exception  if failed to join MUC.
      */
-    public void init(XMPPConnection connection)
+    MucClient(XMPPConnection connection, String mucJid, String nickname)
+    		throws Exception
     {
-        /*
-         * We must make sure Libjitsi has been started.
-         */
         this.connection = connection;
-    }
-
-	/**
-     * Join a Multi-User-Chat of specified MUC jid.
-     * 
-     * @param mucJid The specified MUC jid.
-     * @param nickname The name in MUC.
-     * @throws Exception if failed to join MUC.
-     */
-    public void connect(String mucJid, String nickname) 
-        throws Exception
-    {
-        joinMUC(mucJid, nickname);
-    }
-
-    /**
-     * Disconnect with XMPP server and terminate the Jingle session.
-     * 
-     * @param reason <tt>Reason</tt> type of disconnecting.
-     * @param reasonText The human-read reasons.
-     */
-    public void disconnect(Reason reason, String reasonText)
-    {
-        try {
-			sendByePacket(reason, reasonText);
-		} catch (NotConnectedException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-        leaveMUC();
+        this.joinMUC(mucJid, nickname);
     }
 
     /**
@@ -216,25 +184,6 @@ public class JingleSessionManager
         logger.info("Joined MUC as "+localFullJid);
 
         /*
-         * Register the sending packet listener
-         */
-        sendingListener = new StanzaListener()
-        {
-            @Override
-            public void processStanza(Stanza packet)
-            {
-                logger.info("--->: " + packet);
-            }
-        };
-        connection.addStanzaSendingListener(sendingListener, new StanzaFilter() {
-            @Override
-            public boolean accept(Stanza packet)
-            {
-                return true;
-            }
-        });
-
-        /*
          * Register the receiving packet listener to handle presence packet.
          */
         receivingListener = new StanzaListener()
@@ -260,6 +209,7 @@ public class JingleSessionManager
 
     /**
      * Leave the Multi-User-Chat
+     * @throws Exception if leave unsuccessful
      */
     private void leaveMUC()
     {
@@ -268,14 +218,29 @@ public class JingleSessionManager
         if (muc != null) {
 			try {
 				muc.leave();
-			} catch (NotConnectedException e) {
-				e.printStackTrace();
-			} catch (InterruptedException e) {
+			} catch (Exception e) {
 				e.printStackTrace();
 			}
-	        connection.removeSyncStanzaListener(receivingListener);
         }
-        connection.removeStanzaSendingListener(sendingListener);
+
+        connection.removeSyncStanzaListener(receivingListener);
+    }
+
+    /**
+     * Disconnect with XMPP server and terminate the Jingle session.
+     * 
+     * @param reason <tt>Reason</tt> type of disconnecting.
+     * @param reasonText The human-read reasons.
+     * @throws Exception 
+     */
+    public void disconnect(Reason reason, String reasonText)
+    {
+    	try {
+			sendByePacket(reason, reasonText);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+        leaveMUC();
     }
 
     /**
@@ -325,10 +290,27 @@ public class JingleSessionManager
     {
         sid = initJiq.getSID();
         remoteFullJid = initJiq.getFrom();
-        logger.info("From="+localFullJid+" To="+remoteFullJid+" sid="+sid);
     }
 
-    /**
+    private JingleIQ initIQ;
+    private Object waitForInitPacketSyncRoot = new Object();
+
+	public IQ handleIQRequest(IQ iqRequest) {
+		if (iqRequest instanceof JingleIQ) {
+			JingleIQ iq = (JingleIQ)iqRequest;
+			if (iq.getAction() == JingleAction.SESSION_INITIATE) {
+	            recordSessionInfo(initIQ = iq);
+				synchronized (waitForInitPacketSyncRoot)
+				{
+					waitForInitPacketSyncRoot.notify();
+				}
+				return IQ.createResultIQ(iqRequest);
+			}
+		}
+		return null;
+	}
+
+	/**
      * Wait for Jingle session-init packet after join the MUC.
      * <p>
      * <strong>Warning:</strong> This method will block for at most
@@ -345,80 +327,32 @@ public class JingleSessionManager
     {
         logger.info("waitForInitPacket");
 
-        final Object waitForInitPacketSyncRoot = new Object();
-        final List<JingleIQ> resultList = new ArrayList<JingleIQ>();
+        if (this.initIQ == null) {
+            boolean interrupted = false;
 
-        /*
-         * Register a packet listener for handling Jingle session-init packet.
-         */
-        IQRequestHandler packetListener = new IQRequestHandler()
-        {
-			@Override
-			public Mode getMode() {
-				return Mode.sync;
-			}
-
-			@Override
-			public Type getType() {
-				return Type.set;
-			}
-
-			@Override
-			public String getElement() {
-				return "jingle";
-			}
-
-			@Override
-			public String getNamespace() {
-				return "urn:xmpp:jingle:1";
-			}
-
-			@Override
-			public IQ handleIQRequest(IQ iqRequest) {
-				if (iqRequest instanceof JingleIQ) {
-					JingleIQ iq = (JingleIQ)iqRequest;
-					if (iq.getAction() == JingleAction.SESSION_INITIATE) {
-						resultList.add((JingleIQ) iqRequest);
-						synchronized (waitForInitPacketSyncRoot)
-						{
-							waitForInitPacketSyncRoot.notify();
-						}
-						return IQ.createResultIQ(iqRequest);
-					}
-				}
-				return null;
-			}
-        };
-
-        connection.registerIQRequestHandler(packetListener);
-        boolean interrupted = false;
-
-        synchronized (waitForInitPacketSyncRoot)
-        {
-            while (resultList.isEmpty())
+            synchronized (waitForInitPacketSyncRoot)
             {
-                try
+                while (this.initIQ == null)
                 {
-                    waitForInitPacketSyncRoot.wait(MAX_WAIT_TIME);
-                    break;
-                }
-                catch (InterruptedException ie)
-                {
-                    interrupted = true;
+                    try
+                    {
+                        waitForInitPacketSyncRoot.wait(MAX_WAIT_TIME);
+                        break;
+                    }
+                    catch (InterruptedException ie)
+                    {
+                        interrupted = true;
+                    }
                 }
             }
+            if (interrupted)
+                Thread.currentThread().interrupt();
+
+            if (this.initIQ == null)
+                throw new Exception("Could not get session-init packet, maybe the MUC has locked.");
         }
-        if (interrupted)
-            Thread.currentThread().interrupt();
-
-        connection.unregisterIQRequestHandler(packetListener);
-        if (resultList.isEmpty())
-            throw new Exception("Could not get session-init packet, maybe the MUC has locked.");
-
-        JingleIQ initIq = resultList.get(0);
-        recordSessionInfo(initIq);
-
-        return initIq;
+        
+        return this.initIQ;
     }
 
     /**
@@ -670,7 +604,7 @@ public class JingleSessionManager
     }
 
     /**
-     * Handles events coming from the {@link org.jitsi.jirecon.Task} which owns
+     * Handles events coming from the {@link org.jitsi.jirecon.task.Task} which owns
      * us.
      *
      * @param evt is the specified event.
@@ -728,11 +662,11 @@ public class JingleSessionManager
     /**
      * {@inheritDoc}
      */
-    public List<EndpointInfo> getEndpoints()
+    public List<Endpoint> getEndpoints()
     {
         synchronized (endpoints)
         {
-            return new LinkedList<EndpointInfo>(endpoints.values());
+            return new LinkedList<Endpoint>(endpoints.values());
         }
     }
 
@@ -751,10 +685,10 @@ public class JingleSessionManager
         synchronized (endpoints)
         {
             boolean added = false;
-            EndpointInfo endpoint = endpoints.get(jid);
+            Endpoint endpoint = endpoints.get(jid);
             if (endpoint == null)
             {
-                endpoint = new EndpointInfo();
+                endpoint = new Endpoint();
                 added = true;
             }
             

@@ -38,7 +38,7 @@ import org.jitsi.service.packetlogging.*;
  * 
  */
 public class IceUdpDtlsLink
-    implements NetworkLink
+    implements NetworkLink, Runnable
 {
     /**
      * DTLS transport buffer size. Note: randomly chosen.
@@ -65,8 +65,7 @@ public class IceUdpDtlsLink
      */
     private DtlsPacketTransformer transformer;
 
-    private ExecutorService executorService = Executors
-        .newSingleThreadExecutor();
+    private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     /**
      * Switch used for debugging SCTP traffic purposes. FIXME to be removed
@@ -89,8 +88,7 @@ public class IceUdpDtlsLink
      * @param datagramSocket ICE-UDP socket which is used for receiving packets.
      * @param transformer DTLS transformer which is used for sending packets.
      */
-    public IceUdpDtlsLink(SctpSocket sctpSocket, DatagramSocket datagramSocket,
-        DtlsPacketTransformer transformer)
+    public IceUdpDtlsLink(SctpSocket sctpSocket, DatagramSocket datagramSocket, DtlsPacketTransformer transformer)
     {
         this.sctpSocket = sctpSocket;
         this.datagramSocket = datagramSocket;
@@ -101,57 +99,56 @@ public class IceUdpDtlsLink
 
     private void startReceiving()
     {
-        executorService.execute(new Runnable()
+        executorService.execute(this);
+    }
+
+    public void run()
+    {
+        byte[] receiveBuffer = new byte[SCTP_BUFFER_SIZE];
+        DatagramPacket rcvPacket = new DatagramPacket(receiveBuffer, 0, receiveBuffer.length);
+
+        try
         {
-            public void run()
+            /*
+             * Once SctpSocket is closed, this loop will be broken down,
+             * so we don't have to worry about closing this link.
+             */
+            do
             {
-                byte[] receiveBuffer = new byte[SCTP_BUFFER_SIZE];
-                DatagramPacket rcvPacket = new DatagramPacket(receiveBuffer, 0, receiveBuffer.length);
+                datagramSocket.receive(rcvPacket);
 
-                try
+                RawPacket[] raws = new RawPacket[] {new RawPacket(rcvPacket.getData(), rcvPacket.getOffset(), rcvPacket.getLength())};
+
+                raws = transformer.reverseTransform(raws);
+
+                // Check for app data
+                if (raws == null)
+                    continue;
+
+                RawPacket raw = raws[0];
+
+                if (LOG_SCTP_PACKETS)
                 {
-                    /*
-                     * Once SctpSocket is closed, this loop will be broken down,
-                     * so we don't have to worry about closing this link.
-                     */
-                    do
-                    {
-                        datagramSocket.receive(rcvPacket);
-
-                        RawPacket[] raws = new RawPacket[] {new RawPacket(rcvPacket.getData(), rcvPacket.getOffset(), rcvPacket.getLength())};
-
-                        raws = transformer.reverseTransform(raws);
-                        // Check for app data
-                        if (raws == null)
-                            continue;
-
-                        RawPacket raw = raws[0];
-
-                        if (LOG_SCTP_PACKETS)
-                        {
-                            LibJitsi.getPacketLoggingService().logPacket(
-                                PacketLoggingService.ProtocolName.ICE4J,
-                                new byte[]
-                                { 0, 0, 0, (byte) (debugId + 1) },
-                                datagramSocket.getPort(), new byte[]
-                                { 0, 0, 0, (byte) debugId }, 5000,
-                                PacketLoggingService.TransportName.UDP, false,
-                                raw.getBuffer(), raw.getOffset(),
-                                raw.getLength());
-                        }
-
-                        // Pass network packet to SCTP stack
-                        sctpSocket.onConnIn(raw.getBuffer(), raw.getOffset(),
-                            raw.getLength());
-                    }
-                    while (true);
+                    LibJitsi.getPacketLoggingService().logPacket(
+                        PacketLoggingService.ProtocolName.ICE4J,
+                        new byte[] { 0, 0, 0, (byte) (debugId + 1) },
+                        datagramSocket.getPort(),
+                        new byte[] { 0, 0, 0, (byte) debugId }, 5000,
+                        PacketLoggingService.TransportName.UDP, false,
+                        raw.getBuffer(), raw.getOffset(),
+                        raw.getLength());
                 }
-                catch (IOException e)
-                {
-                    e.printStackTrace();
-                }
+
+                // Pass network packet to SCTP stack
+                sctpSocket.onConnIn(raw.getBuffer(), raw.getOffset(),
+                    raw.getLength());
             }
-        });
+            while (true);
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -175,4 +172,5 @@ public class IceUdpDtlsLink
         debugIdGen += 2;
         return debugIdGen;
     }
+    
 }

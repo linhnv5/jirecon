@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon;
+package org.jitsi.jirecon.task;
 
 import java.util.*;
 

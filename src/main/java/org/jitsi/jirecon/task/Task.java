@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon;
+package org.jitsi.jirecon.task;
 
 import java.io.*;
 import java.util.*;
@@ -25,8 +25,10 @@ import java.util.concurrent.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.jitsi.jirecon.TaskEvent.*;
-import org.jitsi.jirecon.TaskManagerEvent.*;
+import org.jitsi.jirecon.muc.MucClient;
+import org.jitsi.jirecon.muc.MucClientManager;
+import org.jitsi.jirecon.task.TaskEvent.*;
+import org.jitsi.jirecon.task.TaskManagerEvent.*;
 import org.jitsi.jirecon.utils.*;
 import org.jitsi.service.configuration.*;
 import org.jitsi.service.libjitsi.*;
@@ -37,7 +39,6 @@ import org.jitsi.xmpp.extensions.AbstractPacketExtension;
 import org.jitsi.xmpp.extensions.jingle.IceUdpTransportPacketExtension;
 import org.jitsi.xmpp.extensions.jingle.JingleIQ;
 import org.jitsi.xmpp.extensions.jingle.Reason;
-import org.jivesoftware.smack.tcp.XMPPTCPConnection;
 
 /**
  * The individual task to record specified Jitsi-meeting. It is designed in Mediator
@@ -48,12 +49,10 @@ import org.jivesoftware.smack.tcp.XMPPTCPConnection;
  * @author Boris Grozev
  * 
  */
-public class Task
-    implements JireconEventListener, 
-               TaskEventListener,
-               Runnable
+public class Task implements JireconEventListener, TaskEventListener, Runnable
 {
-    /**
+
+	/**
      * The <tt>Logger</tt>, used to log messages to standard output.
      */
     private static final Logger logger = Logger.getLogger(Task.class.getName());
@@ -64,10 +63,12 @@ public class Task
      */
     private List<JireconEventListener> listeners = new ArrayList<JireconEventListener>();
 
+    private MucClientManager mucClientManager;
+
     /**
      * The instance of <tt>JireconSession</tt>.
      */
-    private JingleSessionManager jingleSessionMgr;
+    private MucClient mucClient;
 
     /**
      * The instance of <tt>JireconTransportManager</tt>.
@@ -100,13 +101,62 @@ public class Task
      * FINISHED or ABORTED event.
      */
     private boolean isAborted = false;
-    
+
     /**
-     * Record the task info. <tt>JireconTaskInfo</tt> can be accessed by outside
-     * system.
+     * The MUC jid, which is used to join a MUC. There is no mandatory to use
+     * whole jid as long as it can be recognized by <tt>XMPPConnector</tt> and
+     * join a MUC successfully.
      */
-    private TaskInfo info = new TaskInfo();
-    
+    private String mucJid;
+
+    /**
+     * The name that will be used in MUC.
+     */
+    private String nickname;
+
+    /**
+     * Where does JireconTask output files.
+     */
+    private String outputDir;
+
+    /**
+     * Thread exception handler, in order to catch exceptions of the task
+     * thread.
+     * 
+     * @author lishunyang
+     * 
+     */
+    private class ThreadExceptionHandler implements Thread.UncaughtExceptionHandler
+    {
+        @Override
+        public void uncaughtException(Thread t, Throwable e)
+        {
+            /*
+             * Exception can only be thrown by Task.
+             */
+            stop();
+            fireEvent(new TaskManagerEvent(mucJid, TaskManagerEvent.Type.TASK_ABORTED));
+        }
+    }
+
+    /**
+     * Handler factory, in order to create thread with
+     * <tt>ThreadExceptionHandler</tt>
+     * 
+     * @author lishunyang
+     * 
+     */
+    private class HandlerThreadFactory implements ThreadFactory
+    {
+        @Override
+        public Thread newThread(Runnable r)
+        {
+            Thread t = new Thread(r);
+            t.setUncaughtExceptionHandler(new ThreadExceptionHandler());
+            return t;
+        }
+    }
+
     /**
      * Initialize a <tt>JireconTask</tt>. Specify which Jitsi-meet you want to
      * record and where we should output the media files.
@@ -116,30 +166,26 @@ public class Task
      *            used to send/receive Jingle packet.
      * @param savingDir indicates where we should output the media files.
      */
-    public void init(String mucJid, XMPPTCPConnection connection, String savingDir)
+    public void init(String mucJid, MucClientManager mucClientManager, String savingDir)
     {
         logger.info(this.getClass() + " init");
 
-        info.setOutputDir(savingDir);
+        this.outputDir = savingDir;
         File dir = new File(savingDir);
         if (!dir.exists())
             dir.mkdirs();
 
+        this.mucClientManager = mucClientManager;
+
         ConfigurationService configuration = LibJitsi.getConfigurationService();
 
-        info.setMucJid(mucJid+"@"+configuration.getString(ConfigurationKey.DOMAIN_KEY));
-        info.setNickname(configuration.getString(ConfigurationKey.NICK_KEY));
+        this.mucJid   = mucJid;
+        this.nickname = configuration.getString(ConfigurationKey.NICK_KEY);
 
-        taskExecutor = Executors.newSingleThreadExecutor(new HandlerThreadFactory());
-        transportMgr = new IceUdpTransportManager();
+        taskExecutor   = Executors.newSingleThreadExecutor(new HandlerThreadFactory());
+        transportMgr   = new IceUdpTransportManager();
         dtlsControlMgr = new DtlsControlManager();
-
-        jingleSessionMgr = new JingleSessionManager();
-        jingleSessionMgr.addTaskEventListener(this);
-        jingleSessionMgr.init(connection);
-        addEventListener(jingleSessionMgr);
-
-        recorderMgr = new StreamRecorderManager();
+        recorderMgr    = new StreamRecorderManager();
         recorderMgr.addTaskEventListener(this);
         recorderMgr.init(savingDir, dtlsControlMgr.getAllDtlsControl());
     }
@@ -154,24 +200,94 @@ public class Task
     {
         // Stop the task in case of something hasn't been released correctly.
         stop();
-        
+
+        // 
         listeners.clear();
         transportMgr.free();
 
         if (!keepData)
         {
-            logger.info("Delete output files " + info.getOutputDir());
+            logger.info("Delete output files " + outputDir);
             try
             {
-                Runtime.getRuntime().exec("rm -fr " + info.getOutputDir());
+                Runtime.getRuntime().exec("rm -fr " + outputDir);
             }
             catch (IOException e)
             {
                 logger.info("Failed to remove output files, " + e.getMessage());
             }
         }
+    }
+
+    /**
+     * Register an event listener to this <tt>JireconTask</tt>.
+     * 
+     * @param listener
+     */
+    public void addEventListener(JireconEventListener listener)
+    {
+        listeners.add(listener);
+    }
+
+    /**
+     * Remove and event listener from this <tt>JireconTask</tt>.
+     * 
+     * @param listener
+     */
+    public void removeEventListener(JireconEventListener listener)
+    {
+        listeners.remove(listener);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void handleEvent(TaskManagerEvent evt)
+    {
+        for (JireconEventListener l : listeners)
+            l.handleEvent(evt);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void handleTaskEvent(TaskEvent event)
+    {
+        logger.info("JireconTask event: " + event.getType());
+
+        if (event.getType() == TaskEvent.Type.PARTICIPANT_CAME)
+            recorderMgr.setEndpoints(mucClient.getEndpoints());
+        else if (event.getType() == TaskEvent.Type.PARTICIPANT_LEFT)
+        {
+            List<Endpoint> endpoints = mucClient.getEndpoints();
+
+            // Oh, it seems that all participants have left the MUC(except Jirecon
+            // or other participants which only receive data). It's time to
+            // finish the recording.
+            if (endpoints.isEmpty())
+            {
+                stop();
+                fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_FINISED));
+            }
+            else
+                recorderMgr.setEndpoints(endpoints);
+        }
+    }
+    
+    /**
+     * Fire the event if the task has finished or aborted.
+     * 
+     * @param evt is the <tt>JireconEvent</tt> you want to notify the listeners.
+     */
+    private void fireEvent(TaskManagerEvent evt)
+    {
+        if (TaskManagerEvent.Type.TASK_ABORTED == evt.getType())
+            isAborted = true;
         
-        info = new TaskInfo();
+        for (JireconEventListener l : listeners)
+            l.handleEvent(evt);
     }
 
     /**
@@ -194,9 +310,10 @@ public class Task
         if (!isStopped)
         {
             logger.info(this.getClass() + " stop.");
+            mucClient.disconnect(Reason.SUCCESS, "OK, gotta go.");
+            mucClientManager.leaveMUC(mucJid);
             transportMgr.free();
             recorderMgr.stopRecording();
-            jingleSessionMgr.disconnect(Reason.SUCCESS, "OK, gotta go.");
             isStopped = true;
             
             /*
@@ -206,7 +323,7 @@ public class Task
              * event.
              */
             if (!isAborted)
-                fireEvent(new TaskManagerEvent(info.getMucJid(), TaskManagerEvent.Type.TASK_FINISED));
+                fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_FINISED));
         }
     }
 
@@ -220,10 +337,12 @@ public class Task
         try
         {
             /* 1. Join MUC. */
-            jingleSessionMgr.connect(info.getMucJid(), info.getNickname());
+            mucClient = mucClientManager.joinMUC(mucJid, nickname);
+            mucClient.addTaskEventListener(this);
+            addEventListener(mucClient);
 
             /* 2. Wait for session-init packet. */
-            JingleIQ initIq = jingleSessionMgr.waitForInitPacket();
+            JingleIQ initIq = mucClient.waitForInitPacket();
             MediaType[] supportedMediaTypes = JinglePacketParser.getSupportedMediaTypes(initIq);
 
             /*
@@ -251,7 +370,7 @@ public class Task
 
             /* 3.2 Send session-accept packet. */
             Map<MediaType, Long> localSsrcs = recorderMgr.getLocalSsrcs();
-            jingleSessionMgr.sendAcceptPacket(formatAndPTs, localSsrcs, transportPEs, fingerprintPEs);
+            mucClient.sendAcceptPacket(formatAndPTs, localSsrcs, transportPEs, fingerprintPEs);
 
             /* 3.3 Wait for session-ack packet. */
             // Go on with ICE, no need to waste an RTT here.
@@ -279,10 +398,10 @@ public class Task
             if(!transportMgr.wrapupConnectivityEstablishment())
             {
                 logger.log(Level.SEVERE, "Failed to establish an ICE session.");
-                fireEvent(new TaskManagerEvent(info.getMucJid(), TaskManagerEvent.Type.TASK_ABORTED));
+                fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_ABORTED));
                 return;
             }
-            logger.info("ICE connection established (" + info.getMucJid() + ")");
+            logger.info("ICE connection established (" + this.mucJid + ")");
 
             /*
              * 5.1 Prepare for recording. Once transport manager has selected
@@ -303,139 +422,17 @@ public class Task
             }
 
             /* 5.2 Start recording. */
-            logger.info("====================================\nRECORDING\n====================================");
+            logger.info("<=================RECORDING=================>");
             recorderMgr.startRecording(formatAndPTs, streamConnectors, mediaStreamTargets);
 
             /* Task started */
-            fireEvent(new TaskManagerEvent(info.getMucJid(), TaskManagerEvent.Type.TASK_STARTED));
+            fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_STARTED));
         }
         catch (Exception e)
         {
-            e.printStackTrace();
-            fireEvent(new TaskManagerEvent(info.getMucJid(), TaskManagerEvent.Type.TASK_ABORTED));
+        	e.printStackTrace();
+            fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_ABORTED));
         }
     }
 
-    /**
-     * Register an event listener to this <tt>JireconTask</tt>.
-     * 
-     * @param listener
-     */
-    public void addEventListener(JireconEventListener listener)
-    {
-        listeners.add(listener);
-    }
-
-    /**
-     * Remove and event listener from this <tt>JireconTask</tt>.
-     * 
-     * @param listener
-     */
-    public void removeEventListener(JireconEventListener listener)
-    {
-        listeners.remove(listener);
-    }
-
-    /**
-     * Get the task information.
-     * 
-     * @return The task information.
-     */
-    public TaskInfo getTaskInfo()
-    {
-        return info;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void handleEvent(TaskManagerEvent evt)
-    {
-        for (JireconEventListener l : listeners)
-            l.handleEvent(evt);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void handleTaskEvent(TaskEvent event)
-    {
-        logger.info("JireconTask event: " + event.getType());
-
-        if (event.getType() == TaskEvent.Type.PARTICIPANT_CAME)
-        {
-            List<EndpointInfo> endpoints = jingleSessionMgr.getEndpoints();
-            recorderMgr.setEndpoints(endpoints);
-        }
-
-        else if (event.getType() == TaskEvent.Type.PARTICIPANT_LEFT)
-        {
-            List<EndpointInfo> endpoints =
-                jingleSessionMgr.getEndpoints();
-            // Oh, it seems that all participants have left the MUC(except Jirecon
-            // or other participants which only receive data). It's time to
-            // finish the recording.
-            if (endpoints.isEmpty())
-            {
-                stop();
-                fireEvent(new TaskManagerEvent(info.getMucJid(), TaskManagerEvent.Type.TASK_FINISED));
-            }
-            else
-                recorderMgr.setEndpoints(endpoints);
-        }
-    }
-    
-    /**
-     * Fire the event if the task has finished or aborted.
-     * 
-     * @param evt is the <tt>JireconEvent</tt> you want to notify the listeners.
-     */
-    private void fireEvent(TaskManagerEvent evt)
-    {
-        if (TaskManagerEvent.Type.TASK_ABORTED == evt.getType())
-            isAborted = true;
-        
-        for (JireconEventListener l : listeners)
-            l.handleEvent(evt);
-    }
-
-    /**
-     * Thread exception handler, in order to catch exceptions of the task
-     * thread.
-     * 
-     * @author lishunyang
-     * 
-     */
-    private class ThreadExceptionHandler implements Thread.UncaughtExceptionHandler
-    {
-        @Override
-        public void uncaughtException(Thread t, Throwable e)
-        {
-            /*
-             * Exception can only be thrown by Task.
-             */
-            stop();
-            fireEvent(new TaskManagerEvent(info.getMucJid(), TaskManagerEvent.Type.TASK_ABORTED));
-        }
-    }
-
-    /**
-     * Handler factory, in order to create thread with
-     * <tt>ThreadExceptionHandler</tt>
-     * 
-     * @author lishunyang
-     * 
-     */
-    private class HandlerThreadFactory implements ThreadFactory
-    {
-        @Override
-        public Thread newThread(Runnable r)
-        {
-            Thread t = new Thread(r);
-            t.setUncaughtExceptionHandler(new ThreadExceptionHandler());
-            return t;
-        }
-    }
 }

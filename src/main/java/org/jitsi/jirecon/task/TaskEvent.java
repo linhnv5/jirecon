@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon;
+package org.jitsi.jirecon.task;
 
 /**
  * Task event which can be used by <tt>JireconSession</tt> and
@@ -29,7 +29,8 @@ package org.jitsi.jirecon;
  */
 public class TaskEvent
 {
-    /**
+
+	/**
      * Type of this event.
      */
     private Type type;
@@ -107,4 +108,5 @@ public class TaskEvent
          */
         public void handleTaskEvent(TaskEvent event);
     }
+
 }

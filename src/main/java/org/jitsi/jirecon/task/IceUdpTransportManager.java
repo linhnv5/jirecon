@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon;
+package org.jitsi.jirecon.task;
 
 import java.beans.*;
 import java.net.*;
@@ -75,15 +75,13 @@ public class IceUdpTransportManager
      * Map between <tt>MediaType</tt> and <tt>StreamConnector</tt>. It is used
      * for caching <tt>StreamConnector</tt>.
      */
-    private Map<MediaType, StreamConnector> streamConnectors =
-        new HashMap<MediaType, StreamConnector>();
+    private Map<MediaType, StreamConnector> streamConnectors = new HashMap<MediaType, StreamConnector>();
 
     /**
      * Map between <tt>MediaType</tt> and <tt>MediaStreamTarget</tt>. It is used
      * for caching <tt>MediaStreamTarget</tt>.
      */
-    private Map<MediaType, MediaStreamTarget> mediaStreamTargets =
-        new HashMap<MediaType, MediaStreamTarget>();
+    private Map<MediaType, MediaStreamTarget> mediaStreamTargets = new HashMap<MediaType, MediaStreamTarget>();
 
     /**
      * The minimum stream port.

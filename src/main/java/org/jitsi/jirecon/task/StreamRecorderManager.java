@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon;
+package org.jitsi.jirecon.task;
 
 import java.io.*;
 import java.util.*;
@@ -28,8 +28,8 @@ import java.util.logging.Logger;
 
 import org.jitsi.impl.neomedia.recording.*;
 import org.jitsi.impl.neomedia.rtp.translator.*;
-import org.jitsi.jirecon.TaskEvent.*;
 import org.jitsi.jirecon.datachannel.*;
+import org.jitsi.jirecon.task.TaskEvent.*;
 import org.jitsi.service.libjitsi.*;
 import org.jitsi.service.neomedia.*;
 import org.jitsi.service.neomedia.format.*;
@@ -97,7 +97,7 @@ public class StreamRecorderManager
     /**
      * Active endpoints in the meeting currently.
      */
-    private List<EndpointInfo> endpoints = new ArrayList<EndpointInfo>();
+    private List<Endpoint> endpoints = new ArrayList<Endpoint>();
 
     /**
      * The endpoints sync root.
@@ -265,6 +265,10 @@ public class StreamRecorderManager
             final MediaType mediaType = e.getKey();
             final MediaStream stream  = e.getValue();
 
+            StreamConnector connector = connectors.get(mediaType);
+            if (connector == null)
+            	continue;
+
             stream.setConnector(connectors.get(mediaType));
             stream.setTarget(targets.get(mediaType));
 
@@ -348,8 +352,10 @@ public class StreamRecorderManager
         for (Entry<MediaType, MediaStream> e : streams.entrySet())
         {
             MediaStream stream = e.getValue();
+
             stream.getSrtpControl().start(e.getKey());
             stream.start();
+
             if (stream.isStarted())
                 startCount += 1;
         }
@@ -468,11 +474,9 @@ public class StreamRecorderManager
     {
         logger.fine("createMediaStreams");
         
-        for (MediaType mediaType : new MediaType[]
-        { MediaType.AUDIO, MediaType.VIDEO })
+        for (MediaType mediaType : new MediaType[]{ MediaType.AUDIO, MediaType.VIDEO })
         {
-            MediaStream stream =
-                mediaService.createMediaStream(
+            MediaStream stream = mediaService.createMediaStream(
                         null,
                         mediaType,
                         dtlsControls.get(mediaType));
@@ -499,12 +503,12 @@ public class StreamRecorderManager
         else
         {
             translator = mediaService.createRTPTranslator();
+
             /*
              * We have to do the casting, because RTPTranslator interface doesn't
              * have that method.
              */
-            ((RTPTranslatorImpl) translator).setLocalSSRC(localSsrcs
-                .get(mediaType));
+            ((RTPTranslatorImpl) translator).setLocalSSRC(localSsrcs.get(mediaType));
             rtpTranslators.put(mediaType, translator);
         }
         return translator;
@@ -527,7 +531,7 @@ public class StreamRecorderManager
         {
             if (endpoints != null && !endpoints.isEmpty())
             {
-                for (EndpointInfo endpoint : endpoints)
+                for (Endpoint endpoint : endpoints)
                 {
                     Map<MediaType, Long> ssrcs = endpoint.getSsrcs();
 
@@ -535,17 +539,12 @@ public class StreamRecorderManager
                         continue;
 
                     if (ssrcs.containsValue(ssrc))
-                    {
                         return ssrcs.get(mediaType);
-                    }
                 }
             }
             else
-            {
                 logger.log(Level.WARNING, "The endpoints collection is empty!");
-            }
         }
-
         return -1;
     }
 
@@ -566,9 +565,9 @@ public class StreamRecorderManager
         {
             if (endpoints != null && !endpoints.isEmpty())
             {
-                for (EndpointInfo endpoint : endpoints)
+                for (Endpoint endpoint : endpoints)
                 {
-                    if (0 == endpoint.getId().asBareJid().toString().compareTo(endpointId))
+                    if (endpoint.getId().asBareJid().toString().compareTo(endpointId) == 0)
                         return endpoint.getSsrc(mediaType);
                 }
             }
@@ -593,7 +592,7 @@ public class StreamRecorderManager
         {
             if (endpoints != null && !endpoints.isEmpty())
             {
-                for (EndpointInfo endpoint : endpoints)
+                for (Endpoint endpoint : endpoints)
                 {
                     if (endpoint.getSsrc(mediaType) == ssrc)
                         return endpoint.getId().asUnescapedString();
@@ -609,7 +608,7 @@ public class StreamRecorderManager
     /**
      * {@inheritDoc}
      */
-    public void setEndpoints(List<EndpointInfo> newEndpoints)
+    public void setEndpoints(List<Endpoint> newEndpoints)
     {
         synchronized (endpointsSyncRoot)
         {
@@ -622,7 +621,7 @@ public class StreamRecorderManager
     {
         synchronized (endpointsSyncRoot)
         {
-            for (EndpointInfo endpoint : endpoints)
+            for (Endpoint endpoint : endpoints)
             {
                 final Jid endpointId = endpoint.getId();
                 for (Entry<MediaType, Long> ssrc : endpoint.getSsrcs().entrySet())
@@ -640,6 +639,7 @@ public class StreamRecorderManager
                         Synchronizer synchronizer = recorder.getSynchronizer();
                         synchronizer.setEndpoint(ssrc.getValue(), endpointId.asUnescapedString());
                     }
+
                     logger.info("endpoint: " + endpointId + " " + ssrc.getKey() + " " + ssrc.getValue());
                 }
             }
@@ -777,7 +777,7 @@ public class StreamRecorderManager
 
             RecorderEvent.Type type = event.getType();
 
-            if (RecorderEvent.Type.SPEAKER_CHANGED.equals(type))
+            if (type.equals(RecorderEvent.Type.SPEAKER_CHANGED))
             {
                 /*
                  * We have to use audio ssrc instead endpoint id to find video
@@ -787,6 +787,7 @@ public class StreamRecorderManager
 
                 final long audioSsrc = event.getAudioSsrc();
                 final long videoSsrc = getAssociatedSsrc(audioSsrc, MediaType.VIDEO);
+
                 if (videoSsrc < 0)
                 {
                     logger.log(Level.SEVERE, "Could not find video SSRC associated with audioSsrc=" + audioSsrc);
@@ -830,13 +831,12 @@ public class StreamRecorderManager
                     // First assume the event.ssrc field contains an audio SSRC.
                     endpointId = getEndpointId(ssrc, event.getMediaType());
                     if (endpointId != null && !endpointId.isEmpty())
-                    {
                         event.setEndpointId(endpointId);
-                    }
                 }
             }
 
-            return handler.handleEvent(event);
+            handler.handleEvent(event);
+            return true;
         }
     }
 

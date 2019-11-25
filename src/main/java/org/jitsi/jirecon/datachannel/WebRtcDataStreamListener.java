@@ -27,6 +27,6 @@ public interface WebRtcDataStreamListener
      * @param channel the <tt>WebRtcDataStream</tt> that represents opened
      * WebRTC data channel.
      */
-    public void onChannelOpened(
-            WebRtcDataStream channel);
+    public void onChannelOpened(WebRtcDataStream channel);
+
 }

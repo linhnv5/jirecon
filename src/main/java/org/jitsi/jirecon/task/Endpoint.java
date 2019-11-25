@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon;
+package org.jitsi.jirecon.task;
 
 import java.util.*;
 import org.jitsi.utils.MediaType;
@@ -33,18 +33,18 @@ import org.jxmpp.jid.Jid;
  * @author lishunyang
  * 
  */
-public class EndpointInfo
+public class Endpoint
 {
-    /**
-     * Map between <tt>MediaType</tt> and ssrc. Notice that only audio or video
-     * has ssrc.
-     */
-    private Map<MediaType, Long> ssrcs = new HashMap<MediaType, Long>();
 
     /**
      * Endpoint id.
      */
     private Jid id;
+
+    /**
+     * Map between <tt>MediaType</tt> and ssrc. Notice that only audio or video has ssrc.
+     */
+    private Map<MediaType, Long> ssrcs = new HashMap<MediaType, Long>();
 
     public void setId(Jid id)
     {
@@ -75,4 +75,5 @@ public class EndpointInfo
     {
         return ssrcs.get(mediaType);
     }
+    
 }

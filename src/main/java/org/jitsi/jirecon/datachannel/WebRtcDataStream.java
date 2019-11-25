@@ -30,7 +30,8 @@ import java.io.*;
  */
 public class WebRtcDataStream
 {
-    /**
+
+	/**
      * Payload protocol id for control data. Used for <tt>WebRtcDataStream</tt>
      * allocation.
      */
@@ -50,8 +51,7 @@ public class WebRtcDataStream
     /**
      * The logger
      */
-    private static final Logger logger
-        = Logger.getLogger(WebRtcDataStream.class);
+    private static final Logger logger = Logger.getLogger(WebRtcDataStream.class);
 
     /**
      * <tt>SctpSocket</tt> used for sending SCTP data.
@@ -87,8 +87,7 @@ public class WebRtcDataStream
      * @param acknowledged indicates if this channel has been already
      *                     acknowledged by remote peer.
      */
-    WebRtcDataStream(SctpSocket socket, int sid, String label,
-                     boolean acknowledged)
+    WebRtcDataStream(SctpSocket socket, int sid, String label, boolean acknowledged)
     {
         this.socket = socket;
         this.sid = sid;
@@ -157,9 +156,7 @@ public class WebRtcDataStream
             int res = socket.send(bytes, true, sid, WEB_RTC_PPID_STRING);
 
             if(res != bytes.length)
-            {
                 throw new IOException("Failed to send the data");
-            }
         }
         catch (UnsupportedEncodingException e)
         {
@@ -188,9 +185,7 @@ public class WebRtcDataStream
     {
         int res = socket.send(bytes, true, sid, WEB_RTC_PPID_BIN);
         if (res != bytes.length)
-        {
             throw new IOException("Failed to send the data");
-        }
     }
 
     /**
@@ -231,4 +226,5 @@ public class WebRtcDataStream
          */
         public void onBinaryData(WebRtcDataStream src, byte[] data);
     }
+    
 }

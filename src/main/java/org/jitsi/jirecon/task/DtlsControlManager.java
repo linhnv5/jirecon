@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon;
+package org.jitsi.jirecon.task;
 
 import java.util.*;
 import org.jitsi.impl.neomedia.transform.dtls.*;
@@ -35,7 +35,8 @@ import org.jitsi.xmpp.extensions.jingle.DtlsFingerprintPacketExtension;
  */
 public class DtlsControlManager
 {
-    /**
+
+	/**
      * The <tt>DtlsControl</tt>s hold by this manager.
      */
     private final Map<MediaType, DtlsControl> dtlsControls = new HashMap<MediaType, DtlsControl>();
@@ -145,7 +146,7 @@ public class DtlsControlManager
     {
         final DtlsControl control = getDtlsControl(mediaType);
 
-        if (null != control)
+        if (control != null)
             dtlsControls.get(mediaType).cleanup(null);
     }
 
@@ -166,7 +167,7 @@ public class DtlsControlManager
 
         if (control == null)
         {
-            if (MediaType.DATA == mediaType)
+            if (mediaType == MediaType.DATA)
             {
                 // Do add SRTP extensions, because the server-side code
                 // (org.jitsi.impl.neomedia.transform.dtls.TlsServerImpl)

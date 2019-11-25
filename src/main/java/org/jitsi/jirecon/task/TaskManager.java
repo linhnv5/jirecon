@@ -17,34 +17,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon;
+package org.jitsi.jirecon.task;
 
-import java.io.IOException;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.text.*;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.X509TrustManager;
-
-import org.jitsi.jirecon.TaskManagerEvent.*;
-import org.jitsi.jirecon.protocol.extension.*;
+import org.jitsi.jirecon.muc.MucClientManager;
+import org.jitsi.jirecon.task.TaskManagerEvent.*;
 import org.jitsi.jirecon.utils.*;
 import org.jitsi.service.configuration.*;
 import org.jitsi.service.libjitsi.*;
-import org.jitsi.xmpp.extensions.jingle.JingleIQ;
-import org.jitsi.xmpp.extensions.jingle.JingleIQProvider;
-import org.jitsi.xmpp.extensions.jingle.SctpMapExtension;
-import org.jitsi.xmpp.extensions.jingle.SctpMapExtensionProvider;
 import org.jivesoftware.smack.*;
-import org.jivesoftware.smack.provider.*;
-import org.jivesoftware.smack.tcp.XMPPTCPConnection;
-import org.jivesoftware.smack.tcp.XMPPTCPConnectionConfiguration;
-import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 
 /**
  * The manager of <tt>Task</tt>s. Each <tt>Task</tt> represents a
@@ -52,9 +37,9 @@ import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
  *
  * @author lishunyang
  */
-public class TaskManager
-    implements JireconEventListener
+public final class TaskManager implements JireconEventListener
 {
+
     /**
      * The <tt>Logger</tt> used by the <tt>TaskManager</tt> class and its
      * instances to print debug information.
@@ -67,16 +52,12 @@ public class TaskManager
     private List<JireconEventListener> listeners = new ArrayList<JireconEventListener>();
 
     /**
-     * The <tt>XMPPConnection</tt> used by this <tt>TaskManager</tt> (shared
-     * between all <tt>JireconTask</tt>s).
-     */
-    private XMPPTCPConnection connection;
-
-    /**
      * Maps an ID of a Jitsi Meet conference (the JID of the MUC) to the
      * <tt>JireconTask</tt> for the conference.
      */
     private final Map<String, Task> tasks = new HashMap<String, Task>();
+
+    private MucClientManager mucClientManager = new MucClientManager();
 
     /**
      * The base directory to save recording files. <tt>JireconImpl</tt> will
@@ -102,7 +83,7 @@ public class TaskManager
      * @throws Exception if failed to initialize Jirecon.
      * 
      */
-    synchronized public void init(String configurationPath)
+    public synchronized void init(String configurationPath)
         throws Exception
     {
         logger.info("Initialize.");
@@ -114,11 +95,10 @@ public class TaskManager
         }
 
         LibJitsi.start();
-        initializePacketProviders();
 
         System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_NAME, configurationPath);
         System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_IS_READ_ONLY, "true");
-        final ConfigurationService cfg = LibJitsi.getConfigurationService();
+        ConfigurationService cfg = LibJitsi.getConfigurationService();
         
         baseOutputDir = cfg.getString(ConfigurationKey.SAVING_DIR_KEY);
         if (baseOutputDir == null || baseOutputDir.equals(""))
@@ -133,10 +113,11 @@ public class TaskManager
         final int    xmppPort   = cfg.getInt(ConfigurationKey.XMPP_PORT_KEY, -1);
         final String xmppUser   = cfg.getString(ConfigurationKey.XMPP_USER_KEY);
         final String xmppPass   = cfg.getString(ConfigurationKey.XMPP_PASS_KEY);
+        final String mucDomain  = cfg.getString(ConfigurationKey.DOMAIN_KEY);
 
         try
         {
-            connect(xmppHost, xmppPort, xmppDomain, xmppUser, xmppPass);
+            mucClientManager.connect(xmppHost, xmppPort, xmppDomain, xmppUser, xmppPass, mucDomain);
         }
         catch (XMPPException e)
         {
@@ -158,7 +139,7 @@ public class TaskManager
      * Stop Libjitsi and close connection with XMPP server.
      * 
      */
-    synchronized public void uninit()
+    public synchronized void uninit()
     {
         logger.info("Un-initialize");
         if (!isInitialized)
@@ -170,11 +151,10 @@ public class TaskManager
         synchronized (tasks)
         {
             for (Task task : tasks.values())
-            {
                 task.uninit(true);
-            }
         }
-        closeConnection();
+
+        mucClientManager.closeConnection();
         LibJitsi.stop();
     }
 
@@ -210,7 +190,7 @@ public class TaskManager
         String outputDir = baseOutputDir + "/" + mucJid + new SimpleDateFormat("-yyMMdd-HHmmss").format(new Date());
 
         task.addEventListener(this);
-        task.init(mucJid, connection, outputDir);
+        task.init(mucJid, mucClientManager, outputDir);
 
         task.start();
         return true;
@@ -233,118 +213,17 @@ public class TaskManager
         {
             task = tasks.remove(mucJid);
         }
-        
+
         if (task == null)
         {
             logger.info("Failed to stop non-existent task: " + mucJid);
             return false;
         }
-        else
-        {
-            task.stop();
-            task.uninit(keepData);
-        }
+        
+        task.stop();
+        task.uninit(keepData);
+
         return true;
-    }
-
-    /**
-     * Creates {@link #connection} and connects to the XMPP server.
-     * 
-     * @param xmppDomain is the domain name of XMPP server
-     * @param xmppHost is the host name of XMPP server.
-     * @param xmppPort is the port of XMPP server.
-     * @param xmppUser the XMPP username to use (should NOT include the domain).
-     * Use <tt>null</tt> to login anonymously.
-     * @param xmppPass the XMPP password.
-     * @throws XMPPException in case of failure to connect and login.
-     * @throws InterruptedException 
-     * @throws IOException 
-     * @throws SmackException 
-     */
-    private void connect(String xmppHost, int xmppPort, String xmppDomain, String xmppUser, String xmppPass) throws XMPPException, SmackException, IOException, InterruptedException {
-        logger.info("Connecting to xmpp environment on "+xmppHost+":"+xmppPort+" domain="+xmppDomain);
-
-        XMPPTCPConnectionConfiguration.Builder builder = XMPPTCPConnectionConfiguration.builder()
-        		.setHost(xmppHost)
-        		.setPort(xmppPort)
-        		.setXmppDomain(xmppDomain)
-                .setUsernameAndPassword(xmppUser, xmppPass);
-
-        if (true)
-        {
-            logger.log(Level.WARNING, "Disabling certificate verification!");
-            builder.setCustomX509TrustManager(new X509TrustManager() {
-				@Override
-				public X509Certificate[] getAcceptedIssuers() {
-			        return new X509Certificate[0];
-				}
-				@Override
-				public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-					
-				}
-				@Override
-				public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-					
-				}
-			});
-            builder.setHostnameVerifier(new HostnameVerifier() {
-				@Override
-				public boolean verify(String hostname, SSLSession session) {
-					return true;
-				}
-			});
-        }
-
-        connection = new XMPPTCPConnection(builder.build());
-
-        // Register Jingle Features.
-        ServiceDiscoveryManager discoveryManager;
-        if ((discoveryManager = ServiceDiscoveryManager.getInstanceFor(connection)) != null)
-        {
-            discoveryManager.addFeature(DiscoveryUtil.FEATURE_VIDEO);
-            discoveryManager.addFeature(DiscoveryUtil.FEATURE_AUDIO);
-            discoveryManager.addFeature(DiscoveryUtil.FEATURE_ICE);
-            discoveryManager.addFeature(DiscoveryUtil.FEATURE_SCTP);
-        }
-        else
-            logger.log(Level.WARNING, "Failed to register disco#info features.");
-
-        // Reconnect automatic
-        ReconnectionManager.getInstanceFor(connection).enableAutomaticReconnection();
-
-        //
-        logger.info("Logging in as XMPP client using: host=" + xmppHost + "; port=" + xmppPort + "; user=" + xmppUser);
-        connection.connect().login();
-    }
-
-    /**
-     * Closes the XMPP connection.
-     */
-    private void closeConnection()
-    {
-        logger.info("Closing the XMPP connection.");
-        if (connection != null && connection.isConnected())
-            connection.disconnect();
-    }
-
-    /**
-     * Register our <tt>PacketExtensionProvider</tt>s with Smack's
-     * <tt>ProviderManager</tt>.
-     */
-    private void initializePacketProviders()
-    {
-        ProviderManager.addIQProvider(
-                JingleIQ.ELEMENT_NAME,
-                JingleIQ.NAMESPACE,
-                new JingleIQProvider());
-        ProviderManager.addExtensionProvider(
-                MediaExtension.ELEMENT_NAME,
-                MediaExtension.NAMESPACE,
-                new MediaExtensionProvider());
-        ProviderManager.addExtensionProvider(
-                SctpMapExtension.ELEMENT_NAME,
-                SctpMapExtension.NAMESPACE,
-                new SctpMapExtensionProvider());
     }
 
     /**
@@ -381,23 +260,20 @@ public class TaskManager
 
         switch (evt.getType())
         {
-        case TASK_ABORTED:
-            stopJireconTask(mucJid, false);
-            logger.info("Recording task of MUC " + mucJid + " failed.");
-            fireEvent(evt);
-            break;
-        case TASK_FINISED:
-            stopJireconTask(mucJid, true);
-            logger.info("Recording task of MUC: " + mucJid
-                + " finished successfully.");
-            fireEvent(evt);
-            break;
-        case TASK_STARTED:
-            logger.info("Recording task of MUC " + mucJid + " started.");
-            fireEvent(evt);
-            break;
-        default:
-            break;
+        	case TASK_ABORTED:
+        		stopJireconTask(mucJid, false);
+        		logger.info("Recording task of MUC " + mucJid + " failed.");
+        		fireEvent(evt);
+        		break;
+        	case TASK_FINISED:
+        		stopJireconTask(mucJid, true);
+        		logger.info("Recording task of MUC: " + mucJid + " finished successfully.");
+        		fireEvent(evt);
+        		break;
+        	case TASK_STARTED:
+        		logger.info("Recording task of MUC " + mucJid + " started.");
+        		fireEvent(evt);
+        		break;
         }
     }
 
@@ -410,8 +286,7 @@ public class TaskManager
     private void fireEvent(TaskManagerEvent evt)
     {
         for (JireconEventListener l : listeners)
-        {
             l.handleEvent(evt);
-        }
     }
+
 }
