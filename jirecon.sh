@@ -17,8 +17,6 @@ fi
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
-mainClass="org.jitsi.jirecon.Main"
-cp=$(JARS=($SCRIPT_DIR/jirecon.jar $SCRIPT_DIR/lib/*.jar); IFS=:; echo "${JARS[*]}")
-libs="$SCRIPT_DIR/lib/native/linux-64"
+jars = $SCRIPT_DIR/jirecon.jar
 
-LD_LIBRARY_PATH=$libs java -Djava.library.path=$libs -cp $cp $mainClass $@
+java -jar $jars $@
