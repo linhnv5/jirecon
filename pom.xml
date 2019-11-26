@@ -36,6 +36,7 @@
 			<artifactId>smack-java7</artifactId>
 			<version>${smack.version}</version>
 		</dependency>
+
 		<!-- https://mvnrepository.com/artifact/org.igniterealtime.whack/core -->
 		<dependency>
 			<groupId>org.igniterealtime.whack</groupId>
@@ -45,8 +46,8 @@
 
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>jicoco</artifactId>
-			<version>1.1-4-g7c0752f</version>
+			<artifactId>ice4j</artifactId>
+			<version>3.0-1-ge854e4e</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
@@ -55,23 +56,25 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>jitsi-xmpp-extensions</artifactId>
-			<version>1.0-3-gf1ce0d7</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
 			<artifactId>jitsi-utils</artifactId>
 			<version>1.0-19-ge5cd0ce</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>ice4j</artifactId>
-			<version>3.0-1-ge854e4e</version>
+			<artifactId>jitsi-xmpp-extensions</artifactId>
+			<version>1.0-3-gf1ce0d7</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>jitsi-lgpl-dependencies</artifactId>
 			<version>1.1-SNAPSHOT</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/javax.media/jmf -->
+		<dependency>
+			<groupId>javax.media</groupId>
+			<artifactId>jmf</artifactId>
+			<version>2.1.1e</version>
 		</dependency>
 
 		<dependency>
