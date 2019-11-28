@@ -861,7 +861,6 @@ public class RecorderRtpImpl
                     ? AUDIO_FILENAME_SUFFIX
                     : VIDEO_FILENAME_SUFFIX;
 
-            // XXX '\' on windows?
             String filename = getNextFilename(path, ssrc, audio, suffix);
             desc.filename = filename;
 
@@ -1072,7 +1071,7 @@ public class RecorderRtpImpl
     {
     	MediaType mediaType = audio ? MediaType.AUDIO : MediaType.VIDEO;
     	
-    	prefix = prefix+File.separator+streamRecorderManager.getEndpointId(ssrc, mediaType).asUnescapedString();
+    	prefix = prefix+File.separator+streamRecorderManager.getEndpointId(ssrc, mediaType);
 
     	File f;
     	if (!(f = new File(prefix)).exists())

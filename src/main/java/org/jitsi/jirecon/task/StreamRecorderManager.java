@@ -556,12 +556,9 @@ public class StreamRecorderManager
                 stream.addDynamicRTPPayloadType(f.getValue(), f.getKey());
                 if (stream.getFormat() == null)
                     stream.setFormat(f.getKey());
-                System.out.println("Format: "+f.getKey());
             }
 
             stream.setRTPTranslator(getTranslator(mediaType));
-
-            System.out.println("Type: "+e.getKey()+" connector="+connector+" target="+target);
         }
     }
 
@@ -638,12 +635,8 @@ public class StreamRecorderManager
             stream.getSrtpControl().start(e.getKey());
             stream.start();
 
-            System.out.println("Start "+e.getKey());
-
-            if (stream.isStarted()) {
-            	System.out.println("Started");
+            if (stream.isStarted())
             	startCount += 1;
-            }
         }
 
         // If any media stream failed to start, the starting procedure failed.

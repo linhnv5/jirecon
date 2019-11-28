@@ -686,16 +686,19 @@ public final class MucClient implements JireconEventListener
         synchronized (endpoints)
         {
             boolean added = false;
+
             Endpoint endpoint = endpoints.get(jid);
             if (endpoint == null)
             {
                 endpoint = new Endpoint();
                 added = true;
             }
-            
+
             endpoint.setId(jid);
             for (MediaType mediaType : new MediaType[] { MediaType.AUDIO, MediaType.VIDEO })
                 endpoint.setSsrc(mediaType, ssrcs.get(mediaType));
+
+            System.out.println("Set endpointID="+jid);
 
             endpoints.put(jid, endpoint);
             return added;

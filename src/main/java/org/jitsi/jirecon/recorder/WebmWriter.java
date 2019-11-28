@@ -74,7 +74,7 @@ public class WebmWriter
         freeCfg(glob); //also closes the file
     }
 
-    public void writeFrame(FrameDescriptor fd)
+    public void writeFrame(FrameDescriptor fd, boolean keyFrame)
     {
         writeWebmBlock(glob, fd);
     }
