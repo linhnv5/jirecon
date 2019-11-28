@@ -261,20 +261,17 @@ public final class TaskManager implements JireconEventListener
         switch (evt.getType())
         {
         	case TASK_ABORTED:
-        		stopJireconTask(mucJid, false);
         		logger.info("Recording task of MUC " + mucJid + " failed.");
-        		fireEvent(evt);
         		break;
         	case TASK_FINISED:
-        		stopJireconTask(mucJid, true);
         		logger.info("Recording task of MUC: " + mucJid + " finished successfully.");
-        		fireEvent(evt);
         		break;
         	case TASK_STARTED:
         		logger.info("Recording task of MUC " + mucJid + " started.");
-        		fireEvent(evt);
         		break;
         }
+
+		fireEvent(evt);
     }
 
     /**

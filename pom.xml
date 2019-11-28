@@ -13,6 +13,8 @@
 		<exec.mainClass>org.jitsi.jirecon.Main</exec.mainClass>
 		<smack.version>4.2.4-47d17fc</smack.version>
 		<whack.version>2.0.1</whack.version>
+		<javax.media.jmf.version>2.1.1e</javax.media.jmf.version>
+		<javacpp.ffmpeg.version>4.1-1.4.4</javacpp.ffmpeg.version>
 	</properties>
 
 	<dependencies>
@@ -74,7 +76,21 @@
 		<dependency>
 			<groupId>javax.media</groupId>
 			<artifactId>jmf</artifactId>
-			<version>2.1.1e</version>
+			<version>${javax.media.jmf.version}</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.bytedeco.javacpp-presets/ffmpeg -->
+		<dependency>
+			<groupId>org.bytedeco.javacpp-presets</groupId>
+			<artifactId>ffmpeg</artifactId>
+			<version>${javacpp.ffmpeg.version}</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.bytedeco.javacpp-presets/ffmpeg-platform -->
+		<dependency>
+			<groupId>org.bytedeco.javacpp-presets</groupId>
+			<artifactId>ffmpeg-platform</artifactId>
+			<version>${javacpp.ffmpeg.version}</version>
 		</dependency>
 
 		<dependency>

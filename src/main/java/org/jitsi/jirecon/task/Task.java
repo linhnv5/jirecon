@@ -63,6 +63,9 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
      */
     private List<JireconEventListener> listeners = new ArrayList<JireconEventListener>();
 
+    /**
+     * MUC Manager
+     */
     private MucClientManager mucClientManager;
 
     /**
@@ -283,9 +286,9 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
      */
     private void fireEvent(TaskManagerEvent evt)
     {
-        if (TaskManagerEvent.Type.TASK_ABORTED == evt.getType())
+    	if (TaskManagerEvent.Type.TASK_ABORTED == evt.getType())
             isAborted = true;
-        
+
         for (JireconEventListener l : listeners)
             l.handleEvent(evt);
     }
@@ -309,13 +312,15 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
     {
         if (!isStopped)
         {
+            isStopped = true;
+
             logger.info(this.getClass() + " stop.");
+
             mucClient.disconnect(Reason.SUCCESS, "OK, gotta go.");
             mucClientManager.leaveMUC(mucJid);
             transportMgr.free();
             recorderMgr.stopRecording();
-            isStopped = true;
-            
+
             /*
              * We should only fire TASK_FINISHED event when the task has really
              * finished, because when task is aborted, this "stop" method will

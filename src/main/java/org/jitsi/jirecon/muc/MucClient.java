@@ -38,7 +38,7 @@ import org.jitsi.xmpp.extensions.colibri.SourcePacketExtension;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.CreatorEnum;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.SendersEnum;
-import org.jitsi.xmpp.extensions.jingle.JingleAction;
+import org.jitsi.xmpp.extensions.jitsimeet.MediaPresenceExtension;
 import org.jitsi.xmpp.extensions.jingle.JingleIQ;
 import org.jitsi.xmpp.extensions.jingle.JinglePacketFactory;
 import org.jitsi.xmpp.extensions.jingle.ParameterPacketExtension;
@@ -57,6 +57,7 @@ import org.jivesoftware.smackx.muc.packet.MUCUser;
 import org.jivesoftware.smackx.nick.packet.Nick;
 import org.jxmpp.jid.Jid;
 import org.jxmpp.jid.impl.JidCreate;
+import org.jxmpp.jid.parts.Localpart;
 import org.jxmpp.jid.parts.Resourcepart;
 
 /**
@@ -147,10 +148,33 @@ public final class MucClient implements JireconEventListener
      * @param nickname The name in MUC.
      * @throws Exception if failed to join MUC.
      */
-    private void joinMUC(String mucJid, String nickname)
+    private void joinMUC(final String mucJid, String nickname)
         throws Exception
     {
         logger.info("Joining MUC...");
+
+        /*
+         * Register the receiving packet listener to handle presence packet.
+         */
+        receivingListener = new StanzaListener()
+        {
+            @Override
+            public void processStanza(Stanza packet)
+            {
+                logger.info(packet.getClass() + "<---: " + packet);
+                if (packet instanceof Presence)
+                	handlePresencePacket((Presence) packet);
+            }
+        };
+        connection.addSyncStanzaListener(receivingListener, new StanzaFilter()
+        {
+            @Override
+            public boolean accept(Stanza packet)
+            {
+            	Localpart localpart;
+            	return (localpart = packet.getFrom().getLocalpartOrNull()) != null && mucJid.equals(localpart.toString());
+            }
+        });
 
         MultiUserChatManager mucManager = MultiUserChatManager.getInstanceFor(connection);
 
@@ -185,29 +209,6 @@ public final class MucClient implements JireconEventListener
 
         this.localFullJid = JidCreate.from(mucJid + "/" + finalNickname);
         logger.info("Joined MUC as "+localFullJid);
-
-        /*
-         * Register the receiving packet listener to handle presence packet.
-         */
-        receivingListener = new StanzaListener()
-        {
-            @Override
-            public void processStanza(Stanza packet)
-            {
-                logger.info(packet.getClass() + "<---: " + packet);
-                System.out.println(packet.toXML());
-                if (packet instanceof Presence)
-                	handlePresencePacket((Presence) packet);
-            }
-        };
-        connection.addSyncStanzaListener(receivingListener, new StanzaFilter()
-        {
-            @Override
-            public boolean accept(Stanza packet)
-            {
-                return packet.getTo().equals(localFullJid);
-            }
-        });
     }
 
     /**
@@ -290,6 +291,7 @@ public final class MucClient implements JireconEventListener
     private void recordSessionInfo(JingleIQ initJiq)
     {
         sid = initJiq.getSID();
+        localFullJid  = initJiq.getTo();
         remoteFullJid = initJiq.getFrom();
     }
 
@@ -299,14 +301,19 @@ public final class MucClient implements JireconEventListener
 	public IQ handleIQRequest(IQ iqRequest) {
 		if (iqRequest instanceof JingleIQ) {
 			JingleIQ iq = (JingleIQ)iqRequest;
-			if (iq.getAction() == JingleAction.SESSION_INITIATE) {
-	            recordSessionInfo(initIQ = iq);
-				synchronized (waitForInitPacketSyncRoot)
-				{
-					waitForInitPacketSyncRoot.notify();
-				}
-				return IQ.createResultIQ(iqRequest);
+
+			switch (iq.getAction()) {
+				case SESSION_INITIATE:
+		            recordSessionInfo(initIQ = iq);
+					synchronized (waitForInitPacketSyncRoot)
+					{
+						waitForInitPacketSyncRoot.notify();
+					}
+					break;
+				default:
+					break;
 			}
+			return IQ.createResultIQ(iqRequest);
 		}
 		return null;
 	}
@@ -364,10 +371,8 @@ public final class MucClient implements JireconEventListener
      */
     private void handlePresencePacket(Presence p)
     {
-        ExtensionElement packetExt = p.getExtension(MediaExtension.NAMESPACE);
-        final String name = "x";
-        final String namespace = "http://jabber.org/protocol/muc#user";
-        MUCUser userExt = (MUCUser) p.getExtension(name, namespace);
+        ExtensionElement packetExt = p.getExtension(MediaPresenceExtension.ELEMENT_NAME, MediaPresenceExtension.NAMESPACE);
+        MUCUser userExt = (MUCUser) p.getExtension(MUCUser.ELEMENT, MUCUser.NAMESPACE);
 
         /*
          * In case of presence packet isn't sent by participant, so we can't get
@@ -379,20 +384,25 @@ public final class MucClient implements JireconEventListener
          * Jitsi-meeting presence packet should contain participant jid and
          * media packet extension
          */
-        if (participantJid == null || packetExt == null)
+        if (participantJid == null)
             return;
 
         System.out.println("Join: "+participantJid);
+        System.out.println(p.toXML());
 
-        MediaExtension mediaExt = (MediaExtension) packetExt;
         Map<MediaType, Long> ssrcs = new HashMap<MediaType, Long>();
-        
-        for (MediaType mediaType : new MediaType[] {MediaType.AUDIO, MediaType.VIDEO})
-        {
-            MediaDirection direction = MediaDirection.parseString(mediaExt.getDirection(mediaType.toString()));
+
+        if (packetExt != null) {
+        	MediaPresenceExtension mediaExt = (MediaPresenceExtension) packetExt;
             
-            if (direction.allowsSending())
-                ssrcs.put(mediaType, Long.valueOf(mediaExt.getSsrc(mediaType.toString())));
+        	for (ExtensionElement extensionElement : mediaExt.getChildExtensions())
+        	{
+        		MediaPresenceExtension.Source source = (MediaPresenceExtension.Source)extensionElement;
+                MediaDirection direction = MediaDirection.parseString(source.getDirection());
+
+                if (direction.allowsSending())
+                    ssrcs.put(MediaType.valueOf(source.getElementName()), Long.valueOf(source.getSSRC()));
+            }
         }
         
         // Oh, it seems that some participant has left the MUC.
@@ -697,8 +707,6 @@ public final class MucClient implements JireconEventListener
             endpoint.setId(jid);
             for (MediaType mediaType : new MediaType[] { MediaType.AUDIO, MediaType.VIDEO })
                 endpoint.setSsrc(mediaType, ssrcs.get(mediaType));
-
-            System.out.println("Set endpointID="+jid);
 
             endpoints.put(jid, endpoint);
             return added;

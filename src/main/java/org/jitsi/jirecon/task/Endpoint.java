@@ -46,14 +46,18 @@ public class Endpoint
      */
     private Map<MediaType, Long> ssrcs = new HashMap<MediaType, Long>();
 
+    public Endpoint() {
+    }
+
     public void setId(Jid id)
     {
         this.id = id;
     }
 
-    public void setSsrc(MediaType mediaType, long ssrc)
+    public void setSsrc(MediaType mediaType, Long ssrc)
     {
-        ssrcs.put(mediaType, ssrc);
+    	if (ssrc != null)
+    		ssrcs.put(mediaType, ssrc);
     }
 
     public Jid getId()

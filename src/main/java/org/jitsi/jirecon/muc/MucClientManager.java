@@ -12,14 +12,13 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.X509TrustManager;
 
-import org.jitsi.jirecon.protocol.extension.MediaExtension;
-import org.jitsi.jirecon.protocol.extension.MediaExtensionProvider;
 import org.jitsi.jirecon.task.TaskManager;
 import org.jitsi.jirecon.utils.DiscoveryUtil;
 import org.jitsi.xmpp.extensions.jingle.JingleIQ;
 import org.jitsi.xmpp.extensions.jingle.JingleIQProvider;
 import org.jitsi.xmpp.extensions.jingle.SctpMapExtension;
 import org.jitsi.xmpp.extensions.jingle.SctpMapExtensionProvider;
+import org.jitsi.xmpp.extensions.jitsimeet.MediaPresenceExtension;
 import org.jivesoftware.smack.ReconnectionManager;
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.StanzaListener;
@@ -75,13 +74,10 @@ public final class MucClientManager
                 JingleIQ.NAMESPACE,
                 new JingleIQProvider());
         ProviderManager.addExtensionProvider(
-                MediaExtension.ELEMENT_NAME,
-                MediaExtension.NAMESPACE,
-                new MediaExtensionProvider());
-        ProviderManager.addExtensionProvider(
-                SctpMapExtension.ELEMENT_NAME,
-                SctpMapExtension.NAMESPACE,
-                new SctpMapExtensionProvider());
+        		SctpMapExtension.NAMESPACE,
+        		SctpMapExtension.NAMESPACE,
+        		new SctpMapExtensionProvider());
+        MediaPresenceExtension.registerExtensions();
     }
 
     /**
@@ -100,8 +96,9 @@ public final class MucClientManager
      */
     public void connect(String xmppHost, int xmppPort, String xmppDomain, String xmppUser, String xmppPass, String mucDomain) throws XMPPException, SmackException, IOException, InterruptedException
     {
-    	this.mucDomain = mucDomain;
         initializePacketProviders();
+
+        this.mucDomain = mucDomain;
 
         logger.info("Connecting to xmpp environment on "+xmppHost+":"+xmppPort+" domain="+xmppDomain);
 
@@ -166,6 +163,7 @@ public final class MucClientManager
             public void processStanza(Stanza packet)
             {
                 logger.info("--->: " + packet);
+                System.out.println(packet.toXML());
             }
         };
         connection.addStanzaSendingListener(sendingListener, new StanzaFilter() {
@@ -185,6 +183,7 @@ public final class MucClientManager
             public void processStanza(Stanza packet)
             {
                 logger.info(packet.getClass() + "<---: " + packet);
+                System.out.println(packet.toXML());
             }
         };
         connection.addSyncStanzaListener(receivingListener, new StanzaFilter()
@@ -213,19 +212,20 @@ public final class MucClientManager
 
 			@Override
 			public String getElement() {
-				return "jingle";
+				return JingleIQ.ELEMENT_NAME;
 			}
 
 			@Override
 			public String getNamespace() {
-				return "urn:xmpp:jingle:1";
+				return JingleIQ.NAMESPACE;
 			}
 
 			@Override
-			public IQ handleIQRequest(IQ iqRequest) {
-				MucClient mucClient = mucClients.get(iqRequest.getFrom().getLocalpartOrNull().toString());
+			public IQ handleIQRequest(IQ packet) {
+                System.out.println(packet.toXML());
+				MucClient mucClient = mucClients.get(packet.getFrom().getLocalpartOrNull().toString());
 				if (mucClient != null)
-					return mucClient.handleIQRequest(iqRequest);
+					return mucClient.handleIQRequest(packet);
 				return null;
 			}
         };

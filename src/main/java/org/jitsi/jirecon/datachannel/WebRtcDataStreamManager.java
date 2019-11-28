@@ -280,9 +280,12 @@ public class WebRtcDataStreamManager
 
     private void uinitSctp() throws IOException
     {
-        sctpSocket.close();
-        // TODO: Don't we need to remove callback from SctpSocket?
-        sctpSocket = null;
+    	if (sctpSocket != null) {
+    		sctpSocket.close();
+
+    		// TODO: Don't we need to remove callback from SctpSocket?
+    		sctpSocket = null;
+    	}
         Sctp.finish();
     }
 

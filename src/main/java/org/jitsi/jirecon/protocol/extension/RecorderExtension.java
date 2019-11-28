@@ -32,7 +32,7 @@ public class RecorderExtension implements ExtensionElement
     /**
      * The name of the "recorder" element.
      */
-    public static final String ELEMENT_NAME = "recorder";
+    public static final String ELEMENT = "recorder";
 
     /**
      * The namespace for the "recorder" element.
@@ -65,7 +65,7 @@ public class RecorderExtension implements ExtensionElement
     @Override
     public String getElementName()
     {
-        return ELEMENT_NAME;
+        return ELEMENT;
     }
 
     /**
@@ -85,7 +85,7 @@ public class RecorderExtension implements ExtensionElement
     {
         StringBuilder builder = new StringBuilder();
 
-        builder.append("<").append(ELEMENT_NAME).append(" xmlns='").append(NAMESPACE).append("'");
+        builder.append("<").append(ELEMENT).append(" xmlns='").append(NAMESPACE).append("'");
         if (state != null)
             builder.append(" ").append(STATE_ATTR_NAME).append("='").append(state).append("'");
         builder.append("/>");

@@ -48,7 +48,7 @@ public class WebmDataSink implements DataSink, BufferTransferHandler {
 	/**
 	 * The <tt>WebmWriter</tt> which we use to write the frames to a file.
 	 */
-	private WebmWriter writer = null;
+	private WebmWriterFFmpeg writer = null;
 
 	private RecorderEventHandler eventHandler;
 	private long ssrc = -1;
@@ -139,10 +139,8 @@ public class WebmDataSink implements DataSink, BufferTransferHandler {
 	public WebmDataSink(String filename, DataSource dataSource) {
 		ConfigurationService cfg = LibJitsi.getConfigurationService();
 		this.autoKeyframeRequestInterval = cfg.getInt(AUTO_REQUEST_KEYFRAME_PNAME, this.autoKeyframeRequestInterval);
-		if (this.autoKeyframeRequestInterval > 0 && logger.isInfoEnabled()) {
-			logger.info(
-					"Auto keyframe request is initialized for every " + this.autoKeyframeRequestInterval + " frames.");
-		}
+		if (this.autoKeyframeRequestInterval > 0 && logger.isInfoEnabled())
+			logger.info("Auto keyframe request is initialized for every " + this.autoKeyframeRequestInterval + " frames.");
 		this.filename = filename;
 		this.dataSource = dataSource;
 	}
@@ -245,7 +243,7 @@ public class WebmDataSink implements DataSink, BufferTransferHandler {
 	 */
 	@Override
 	public void start() throws IOException {
-		writer = new WebmWriter(filename);
+		writer = new WebmWriterFFmpeg(filename);
 		dataSource.start();
 		if (logger.isInfoEnabled())
 			logger.info("Created WebmWriter on " + filename);

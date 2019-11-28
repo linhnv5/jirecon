@@ -871,7 +871,10 @@ public class StreamRecorderManager
         {
             if (endpoints != null && !endpoints.isEmpty())
             {
-                for (Endpoint endpoint : endpoints)
+            	if (endpoints.size() == 1)
+            		return endpoints.get(0).getId();
+
+            	for (Endpoint endpoint : endpoints)
                 {
                     if (endpoint.getSsrc(mediaType) == ssrc)
                         return endpoint.getId();
@@ -879,7 +882,6 @@ public class StreamRecorderManager
             }
             else
                 logger.log(Level.WARNING, "The endpoints collection is empty!");
-
             return null;
         }
     }
