@@ -167,27 +167,30 @@ public class DtlsControlManager
 
         if (control == null)
         {
-            if (mediaType == MediaType.DATA)
-            {
-                // Do add SRTP extensions, because the server-side code
-                // (org.jitsi.impl.neomedia.transform.dtls.TlsServerImpl)
-                // expects them in all cases.
-                control = new DtlsControlImpl(false);
-            }
-            else
-            {
-                 // As for the other media types (such as "audio" or "video"), we
-                 // can use MediaService to create DtlsControl.
-                MediaService mediaService = LibJitsi.getMediaService();
-                control = (DtlsControl) mediaService.createSrtpControl(SrtpControlType.DTLS_SRTP);
-            }
+        	try {
+                if (mediaType == MediaType.DATA)
+                {
+                    // Do add SRTP extensions, because the server-side code
+                    // (org.jitsi.impl.neomedia.transform.dtls.TlsServerImpl)
+                    // expects them in all cases.
+                    control = new DtlsControlImpl(false);
+                }
+                else
+                {
+                     // As for the other media types (such as "audio" or "video"), we
+                     // can use MediaService to create DtlsControl.
+                    control = (DtlsControl) LibJitsi.getMediaService().createSrtpControl(SrtpControlType.DTLS_SRTP);
+                }
 
-            dtlsControls.put(mediaType, control);
+                dtlsControls.put(mediaType, control);
 
-            /*
-             * In Jirecon, "setup" can be safely set to "ACTIVE".
-             */
-            control.setSetup(DtlsControl.Setup.ACTIVE);
+                /*
+                 * In Jirecon, "setup" can be safely set to "ACTIVE".
+                 */
+                control.setSetup(DtlsControl.Setup.ACTIVE);
+        	} catch(Exception e) {
+        		e.printStackTrace();
+        	}
         }
 
         return control;
