@@ -105,7 +105,7 @@ public class Main
 
         // Debug
         if (mucJids.size() == 0)
-        	mucJids.add("testroom");
+        	mucJids.add("room");
 
         // no task ?
         if ((taskCount = mucJids.size()) == 0)

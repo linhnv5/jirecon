@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.task;
+package org.jitsi.jirecon.recorder;
 
 import java.io.*;
 import java.util.*;
@@ -266,20 +266,21 @@ public class StreamRecorderManager
             final MediaStream stream  = e.getValue();
 
             StreamConnector connector = connectors.get(mediaType);
-            if (connector == null)
-            	continue;
-
-            stream.setConnector(connectors.get(mediaType));
-            stream.setTarget(targets.get(mediaType));
+            MediaStreamTarget target  = targets.get(mediaType);
+            stream.setConnector(connector);
+            stream.setTarget(target);
 
             for (Entry<MediaFormat, Byte> f : formatAndPTs.get(mediaType).entrySet())
             {
                 stream.addDynamicRTPPayloadType(f.getValue(), f.getKey());
                 if (stream.getFormat() == null)
                     stream.setFormat(f.getKey());
+                System.out.println("Format: "+f.getKey());
             }
 
             stream.setRTPTranslator(getTranslator(mediaType));
+
+            System.out.println("Type: "+e.getKey()+" connector="+connector+" target="+target);
         }
     }
 
@@ -308,7 +309,7 @@ public class StreamRecorderManager
 
         for (Entry<MediaType, RTPTranslator> e : rtpTranslators.entrySet())
         {
-            Recorder recorder = mediaService.createRecorder(e.getValue());
+            Recorder recorder = new RecorderImpl(e.getValue());// mediaService.createRecorder(e.getValue());
 
             // The idea is for the two recorders (for audio and video) to share
             // a Synchronizer instance. Otherwise audio and video will not be
@@ -356,8 +357,12 @@ public class StreamRecorderManager
             stream.getSrtpControl().start(e.getKey());
             stream.start();
 
-            if (stream.isStarted())
-                startCount += 1;
+            System.out.println("Start "+e.getKey());
+
+            if (stream.isStarted()) {
+            	System.out.println("Started");
+            	startCount += 1;
+            }
         }
 
         // If any media stream failed to start, the starting procedure failed.
@@ -635,10 +640,7 @@ public class StreamRecorderManager
                     // the recorders are prepared (see method
                     // prepareRecorders())
                     if (recorder != null)
-                    {
-                        Synchronizer synchronizer = recorder.getSynchronizer();
-                        synchronizer.setEndpoint(ssrc.getValue(), endpointId.asUnescapedString());
-                    }
+                    	recorder.getSynchronizer().setEndpoint(ssrc.getValue(), endpointId.asUnescapedString());
 
                     logger.info("endpoint: " + endpointId + " " + ssrc.getKey() + " " + ssrc.getValue());
                 }
@@ -773,7 +775,7 @@ public class StreamRecorderManager
         @Override
         public synchronized boolean handleEvent(RecorderEvent event)
         {
-            logger.fine(event + " ssrc:" + event.getSsrc());
+            logger.info(event + " ssrc:" + event.getSsrc());
 
             RecorderEvent.Type type = event.getType();
 
@@ -850,7 +852,8 @@ public class StreamRecorderManager
     private class DataChannelAdapter
         implements WebRtcDataStreamListener
     {
-        /**
+
+    	/**
          * We have to keep this <tt>DtlsControl</tt> for a while, because
          * <tt>WebRtcDataStreamManager</tt> need this when we start it.
          */

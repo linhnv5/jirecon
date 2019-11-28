@@ -24,7 +24,7 @@ import java.util.*;
 import net.java.sip.communicator.util.*;
 
 import org.jitsi.jirecon.protocol.extension.*;
-import org.jitsi.jirecon.task.Endpoint;
+import org.jitsi.jirecon.recorder.Endpoint;
 import org.jitsi.jirecon.task.TaskEvent;
 import org.jitsi.jirecon.task.TaskManagerEvent;
 import org.jitsi.jirecon.task.TaskEvent.*;

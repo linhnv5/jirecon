@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.jitsi.jirecon.*;
 import org.jitsi.jirecon.task.TaskManager;
 import org.jitsi.jirecon.task.TaskManagerEvent;
 import org.xmpp.component.*;

@@ -99,7 +99,7 @@ public final class TaskManager implements JireconEventListener
         System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_NAME, configurationPath);
         System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_IS_READ_ONLY, "true");
         ConfigurationService cfg = LibJitsi.getConfigurationService();
-        
+
         baseOutputDir = cfg.getString(ConfigurationKey.SAVING_DIR_KEY);
         if (baseOutputDir == null || baseOutputDir.equals(""))
             throw new Exception("Failed to initialize Jirecon: output directory not set.");
