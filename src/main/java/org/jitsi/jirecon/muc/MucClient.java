@@ -238,7 +238,6 @@ public final class MucClient implements JireconEventListener
     	try {
 			sendByePacket(reason, reasonText);
 		} catch (Exception e) {
-			e.printStackTrace();
 		}
         leaveMUC();
     }
