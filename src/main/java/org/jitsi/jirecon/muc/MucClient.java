@@ -219,7 +219,6 @@ public final class MucClient implements JireconEventListener
 			try {
 				muc.leave();
 			} catch (Exception e) {
-				e.printStackTrace();
 			}
         }
 
