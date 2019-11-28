@@ -103,6 +103,10 @@ public class Main
                 mucJids.add(arg);
         }
 
+        // Debug
+        if (mucJids.size() == 0)
+        	mucJids.add("testroom");
+
         // no task ?
         if ((taskCount = mucJids.size()) == 0)
         {

@@ -27,10 +27,6 @@ import java.util.logging.Logger;
 
 import org.jitsi.jirecon.muc.MucClient;
 import org.jitsi.jirecon.muc.MucClientManager;
-import org.jitsi.jirecon.recorder.DtlsControlManager;
-import org.jitsi.jirecon.recorder.Endpoint;
-import org.jitsi.jirecon.recorder.IceUdpTransportManager;
-import org.jitsi.jirecon.recorder.StreamRecorderManager;
 import org.jitsi.jirecon.task.TaskEvent.*;
 import org.jitsi.jirecon.task.TaskManagerEvent.*;
 import org.jitsi.jirecon.utils.*;

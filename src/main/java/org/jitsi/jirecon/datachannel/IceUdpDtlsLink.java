@@ -97,11 +97,18 @@ public class IceUdpDtlsLink
         startReceiving();
     }
 
+    /**
+     * Start receiving stream
+     */
     private void startReceiving()
     {
         executorService.execute(this);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void run()
     {
         byte[] receiveBuffer = new byte[SCTP_BUFFER_SIZE];
@@ -167,6 +174,10 @@ public class IceUdpDtlsLink
         transformer.transform(new RawPacket[] {rawPacket});
     }
 
+    /**
+     * Debug ...
+     * @return debug id
+     */
     private static synchronized int generateDebugId()
     {
         debugIdGen += 2;

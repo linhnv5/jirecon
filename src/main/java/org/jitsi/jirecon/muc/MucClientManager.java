@@ -54,7 +54,14 @@ public final class MucClientManager
      */
     private XMPPTCPConnection connection;
 
+    /**
+     * The XMPP domain provide MUC service
+     */
     private String mucDomain;
+
+    /**
+     * Map of MUC joined
+     */
     private Map<String, MucClient> mucClients = new HashMap<String, MucClient>();
 
     /**
@@ -241,6 +248,11 @@ public final class MucClientManager
     	return mucClient;
     }
 
+    /**
+     * Call for remove MUCClient from map
+     * 
+     * @param mucJid
+     */
     public void leaveMUC(String mucJid) {
     	this.mucClients.remove(mucJid);
     }

@@ -19,6 +19,11 @@
  */
 package org.jitsi.jirecon.datachannel;
 
+/**
+ * Rtc data stream listener
+ * @author ljnk975
+ *
+ */
 public interface WebRtcDataStreamListener
 {
     /**

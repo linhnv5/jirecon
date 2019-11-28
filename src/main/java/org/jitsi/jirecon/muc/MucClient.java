@@ -24,7 +24,7 @@ import java.util.*;
 import net.java.sip.communicator.util.*;
 
 import org.jitsi.jirecon.protocol.extension.*;
-import org.jitsi.jirecon.recorder.Endpoint;
+import org.jitsi.jirecon.task.Endpoint;
 import org.jitsi.jirecon.task.TaskEvent;
 import org.jitsi.jirecon.task.TaskManagerEvent;
 import org.jitsi.jirecon.task.TaskEvent.*;
@@ -122,6 +122,9 @@ public final class MucClient implements JireconEventListener
      */
     private final Map<Jid, Endpoint> endpoints = new HashMap<Jid, Endpoint>();
 
+    /**
+     * Packet listening for precence packet handle
+     */
     private StanzaListener receivingListener;
     
     /**
@@ -658,7 +661,7 @@ public final class MucClient implements JireconEventListener
     }
 
     /**
-     * {@inheritDoc}
+     * Get all endpoint in this conference
      */
     public List<Endpoint> getEndpoints()
     {

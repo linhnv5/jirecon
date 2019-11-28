@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.recorder;
+package org.jitsi.jirecon.task;
 
 import java.util.*;
 import org.jitsi.utils.MediaType;
@@ -75,5 +75,5 @@ public class Endpoint
     {
         return ssrcs.get(mediaType);
     }
-    
+
 }
