@@ -29,6 +29,7 @@ package org.jitsi.jirecon.utils;
  */
 public class ConfigurationKey
 {
+
     /**
      * Prefix of configiguration keys.
      */
@@ -80,13 +81,12 @@ public class ConfigurationKey
      * <tt>Jirecon</tt> needs multiple ports for transfering media stream, this
      * indicates the MIN port number it can use.
      */
-    public final static String MIN_STREAM_PORT_KEY = PREFIX
-        + ".MIN_STREAM_PORT";
+    public final static String MIN_STREAM_PORT_KEY = PREFIX + ".MIN_STREAM_PORT";
 
     /**
      * <tt>Jirecon</tt> needs multiple ports for transfering media stream, this
      * indicates the MAX port number it can use.
      */
-    public final static String MAX_STREAM_PORT_KEY = PREFIX
-        + ".MAX_STREAM_PORT";
+    public final static String MAX_STREAM_PORT_KEY = PREFIX + ".MAX_STREAM_PORT";
+
 }
