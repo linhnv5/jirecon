@@ -37,32 +37,27 @@ public class DiscoveryUtil
     /**
      * Audio RTP feature name.
      */
-    public final static String FEATURE_AUDIO
-            = "urn:xmpp:jingle:apps:rtp:audio";
+    public final static String FEATURE_AUDIO = "urn:xmpp:jingle:apps:rtp:audio";
 
     /**
      * Video RTP feature name.
      */
-    public final static String FEATURE_VIDEO
-            = "urn:xmpp:jingle:apps:rtp:video";
+    public final static String FEATURE_VIDEO = "urn:xmpp:jingle:apps:rtp:video";
 
     /**
      * ICE feature name.
      */
-    public final static String FEATURE_ICE
-            = "urn:xmpp:jingle:transports:ice-udp:1";
+    public final static String FEATURE_ICE = "urn:xmpp:jingle:transports:ice-udp:1";
 
     /**
      * DTLS/SCTP feature name.
      */
-    public final static String FEATURE_SCTP
-            = "urn:xmpp:jingle:transports:dtls-sctp:1";
+    public final static String FEATURE_SCTP = "urn:xmpp:jingle:transports:dtls-sctp:1";
 
     /**
      * RTX (RFC4588) support.
      */
-    public final static String FEATURE_RTX
-        = "urn:ietf:rfc:4588";
+    public final static String FEATURE_RTX = "urn:ietf:rfc:4588";
 
     /**
      * The Jingle DTLS feature name (XEP-0320).
@@ -89,8 +84,7 @@ public class DiscoveryUtil
      * that support all of the functionality required for doing the lip-sync
      * properly.
      */
-    public final static String FEATURE_LIPSYNC
-        = "http://jitsi.org/meet/lipsync";
+    public final static String FEATURE_LIPSYNC = "http://jitsi.org/meet/lipsync";
 
     /**
      * Returns default participant feature set(all features).

@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.protocol.extension;
+package org.jitsi.xmpp.extensions.jirecon;
 
 import org.jivesoftware.smack.packet.*;
 

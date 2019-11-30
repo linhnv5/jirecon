@@ -39,7 +39,6 @@ import org.jitsi.service.neomedia.recording.*;
 import org.jitsi.utils.MediaType;
 import org.json.simple.*;
 import org.json.simple.parser.*;
-import org.jxmpp.jid.Jid;
 
  /**
  * <tt>StreamRecorderManager</tt> is used to record media
@@ -207,7 +206,7 @@ public class StreamRecorderManager
                 logger.fine("SPEAKER_CHANGED audio ssrc: " + event.getAudioSsrc());
 
                 final long audioSsrc = event.getAudioSsrc();
-                final long videoSsrc = getAssociatedSsrc(audioSsrc, MediaType.VIDEO);
+                final long videoSsrc = getAssociatedSsrc(audioSsrc, MediaType.AUDIO, MediaType.VIDEO);
 
                 if (videoSsrc < 0)
                 {
@@ -221,7 +220,7 @@ public class StreamRecorderManager
                 event.setSsrc(videoSsrc);
             }
 
-            Jid endpointId = null;
+            String endpointId = null;
             if (event.getEndpointId() == null || event.getEndpointId().isEmpty())
             {
                 // Here we find and set the event.endpointId field of the event,
@@ -800,11 +799,10 @@ public class StreamRecorderManager
      * one for video stream.
      * 
      * @param ssrc indicates an endpoint.
-     * @param mediaType is the <tt>MediaType</tt> which indicates which ssrc you
-     *            want to get.
+     * @param mediaType is the <tt>MediaType</tt> which indicates which ssrc you want to get.
      * @return ssrc or -1 if not found
      */
-    private long getAssociatedSsrc(long ssrc, MediaType mediaType)
+    private long getAssociatedSsrc(long ssrc, MediaType getMediaType, MediaType mediaType)
     {
         synchronized (endpointsSyncRoot)
         {
@@ -812,13 +810,13 @@ public class StreamRecorderManager
             {
                 for (Endpoint endpoint : endpoints)
                 {
-                    Map<MediaType, Long> ssrcs = endpoint.getSsrcs();
+                    Map<MediaType, List<Long>> ssrcs = endpoint.getSsrcs();
 
                     if (ssrcs.size() < 2)
                         continue;
 
-                    if (ssrcs.containsValue(ssrc))
-                        return ssrcs.get(mediaType);
+                    if (ssrcs.get(getMediaType).contains(ssrc))
+                        return ssrcs.get(mediaType).get(0);
                 }
             }
             else
@@ -846,8 +844,8 @@ public class StreamRecorderManager
             {
                 for (Endpoint endpoint : endpoints)
                 {
-                    if (endpoint.getId().asBareJid().toString().compareTo(endpointId) == 0)
-                        return endpoint.getSsrc(mediaType);
+                    if (endpoint.getId().toString().compareTo(endpointId) == 0)
+                        return endpoint.getSsrc(mediaType).get(0);
                 }
             }
             else
@@ -865,19 +863,18 @@ public class StreamRecorderManager
      * @return the endpoint ID or an empty string if the endpoint ID is not
      * found
      */
-    public Jid getEndpointId(long ssrc, MediaType mediaType)
+    public String getEndpointId(long ssrc, MediaType mediaType)
     {
         synchronized (endpointsSyncRoot)
         {
             if (endpoints != null && !endpoints.isEmpty())
             {
-            	if (endpoints.size() == 1)
-            		return endpoints.get(0).getId();
-
+            	System.out.println("ssrc="+ssrc);
             	for (Endpoint endpoint : endpoints)
                 {
-                    if (endpoint.getSsrc(mediaType) == ssrc)
-                        return endpoint.getId();
+            		System.out.println("Endpoint: "+endpoint+" mediaType="+mediaType+" ssrc="+endpoint.getSsrc(mediaType));
+                    if (endpoint.getSsrc(mediaType).contains(ssrc))
+                        return endpoint.getId().toString();
                 }
             }
             else
@@ -891,6 +888,7 @@ public class StreamRecorderManager
      */
     public void setEndpoints(List<Endpoint> newEndpoints)
     {
+    	System.out.println("Endpoints: "+newEndpoints.size());
         synchronized (endpointsSyncRoot)
         {
             endpoints = newEndpoints;
@@ -898,14 +896,14 @@ public class StreamRecorderManager
         }
     }
 
-    void updateSynchronizers()
+    private void updateSynchronizers()
     {
         synchronized (endpointsSyncRoot)
         {
             for (Endpoint endpoint : endpoints)
             {
-                final Jid endpointId = endpoint.getId();
-                for (Entry<MediaType, Long> ssrc : endpoint.getSsrcs().entrySet())
+                final String endpointId = endpoint.getId().toString();
+                for (Entry<MediaType, List<Long>> ssrc : endpoint.getSsrcs().entrySet())
                 {
                     Recorder recorder = recorders.get(ssrc.getKey());
 
@@ -915,8 +913,10 @@ public class StreamRecorderManager
                     // recorder yet (because we get XMPP presence packets before
                     // the recorders are prepared (see method
                     // prepareRecorders())
-                    if (recorder != null)
-                    	recorder.getSynchronizer().setEndpoint(ssrc.getValue(), endpointId.asUnescapedString());
+                    if (recorder != null) {
+                    	for (Long ssrcl : ssrc.getValue())
+                    		recorder.getSynchronizer().setEndpoint(ssrcl, endpointId);
+                    }
 
                     logger.info("endpoint: " + endpointId + " " + ssrc.getKey() + " " + ssrc.getValue());
                 }
@@ -967,20 +967,5 @@ public class StreamRecorderManager
         }
         return localSsrcs;
     }
-
-    /**
-     * Fire a <tt>JireconTaskEvent</tt>, notify listeners we've made new
-     * progress which they may interest in.
-     * 
-     * @param event
-     */
-//    private void fireEvent(TaskEvent event)
-//    {
-//        synchronized (listeners)
-//        {
-//            for (TaskEventListener l : listeners)
-//                l.handleTaskEvent(event);
-//        }
-//    }
 
 }

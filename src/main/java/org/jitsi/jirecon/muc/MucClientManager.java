@@ -182,7 +182,7 @@ public final class MucClientManager
             @Override
             public void processStanza(Stanza packet)
             {
-                logger.info(packet.getClass() + "<---: " + packet);
+                logger.info("["+packet.getClass().getName() + "]<---: " + packet);
                 System.out.println(packet.toXML());
             }
         };
@@ -222,6 +222,7 @@ public final class MucClientManager
 
 			@Override
 			public IQ handleIQRequest(IQ packet) {
+                logger.info("["+packet.getClass().getName() + "]<---: " + packet);
                 System.out.println(packet.toXML());
 				MucClient mucClient = mucClients.get(packet.getFrom().getLocalpartOrNull().toString());
 				if (mucClient != null)

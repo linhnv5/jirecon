@@ -37,7 +37,6 @@ import org.jitsi.service.neomedia.format.*;
 import org.jitsi.utils.MediaType;
 import org.jitsi.xmpp.extensions.AbstractPacketExtension;
 import org.jitsi.xmpp.extensions.jingle.IceUdpTransportPacketExtension;
-import org.jitsi.xmpp.extensions.jingle.JingleIQ;
 import org.jitsi.xmpp.extensions.jingle.Reason;
 
 /**
@@ -260,6 +259,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
     {
         logger.info("JireconTask event: " + event.getType());
 
+        System.out.println("Evt: "+event.getType());
         if (event.getType() == TaskEvent.Type.PARTICIPANT_CAME)
             recorderMgr.setEndpoints(mucClient.getEndpoints());
         else if (event.getType() == TaskEvent.Type.PARTICIPANT_LEFT)
@@ -347,16 +347,15 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
             addEventListener(mucClient);
 
             /* 2. Wait for session-init packet. */
-            JingleIQ initIq = mucClient.waitForInitPacket();
-            MediaType[] supportedMediaTypes = JinglePacketParser.getSupportedMediaTypes(initIq);
+            mucClient.waitForInitPacket();
+            
+            List <MediaType> supportedMediaTypes = mucClient.getSupportedMediaTypes();
 
             /*
              * 3.1 Prepare for sending session-accept packet.
              */
             // Media format and payload type id.
-            Map<MediaType, Map<MediaFormat, Byte>> formatAndPTs = new HashMap<MediaType, Map<MediaFormat, Byte>>();
-            for (MediaType mediaType : new MediaType[] {MediaType.AUDIO, MediaType.VIDEO})
-                formatAndPTs.put(mediaType, JinglePacketParser.getFormatAndDynamicPTs(initIq, mediaType));
+            Map<MediaType, Map<MediaFormat, Byte>> formatAndPTs = mucClient.getFormatAndPTs();
 
             // Transport packet extension.
             for (MediaType mediaType : supportedMediaTypes)
@@ -368,7 +367,8 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
 
             // Fingerprint packet extension.
             for (MediaType mediaType : supportedMediaTypes)
-                dtlsControlMgr.setRemoteFingerprint(mediaType, JinglePacketParser.getFingerprintPacketExt(initIq, mediaType));
+                dtlsControlMgr.setRemoteFingerprint(mediaType, mucClient.getFingerprints().get(mediaType));
+
             Map<MediaType, AbstractPacketExtension> fingerprintPEs = new HashMap<MediaType, AbstractPacketExtension>();
             for (MediaType mediaType : supportedMediaTypes)
                 fingerprintPEs.put(mediaType, dtlsControlMgr.createFingerprintPacketExt(mediaType));
@@ -389,7 +389,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
              */
             Map<MediaType, IceUdpTransportPacketExtension> remoteTransportPEs = new HashMap<MediaType, IceUdpTransportPacketExtension>();
             for (MediaType mediaType : supportedMediaTypes)
-                remoteTransportPEs.put(mediaType, JinglePacketParser.getTransportPacketExt(initIq, mediaType));
+                remoteTransportPEs.put(mediaType, mucClient.getIceTransports().get(mediaType));
             transportMgr.addRemoteCandidates(remoteTransportPEs);
 
             /*

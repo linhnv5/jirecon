@@ -23,11 +23,11 @@ import java.util.*;
 
 import net.java.sip.communicator.util.*;
 
-import org.jitsi.jirecon.protocol.extension.*;
+import org.jitsi.impl.neomedia.format.MediaFormatFactoryImpl;
 import org.jitsi.jirecon.task.Endpoint;
 import org.jitsi.jirecon.task.TaskEvent;
+import org.jitsi.jirecon.task.TaskEvent.TaskEventListener;
 import org.jitsi.jirecon.task.TaskManagerEvent;
-import org.jitsi.jirecon.task.TaskEvent.*;
 import org.jitsi.jirecon.task.TaskManagerEvent.JireconEventListener;
 import org.jitsi.service.libjitsi.*;
 import org.jitsi.service.neomedia.*;
@@ -36,11 +36,16 @@ import org.jitsi.utils.MediaType;
 import org.jitsi.xmpp.extensions.AbstractPacketExtension;
 import org.jitsi.xmpp.extensions.colibri.SourcePacketExtension;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension;
+import org.jitsi.xmpp.extensions.jingle.DtlsFingerprintPacketExtension;
+import org.jitsi.xmpp.extensions.jingle.IceUdpTransportPacketExtension;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.CreatorEnum;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.SendersEnum;
-import org.jitsi.xmpp.extensions.jitsimeet.MediaPresenceExtension;
+import org.jitsi.xmpp.extensions.jirecon.*;
+import org.jitsi.xmpp.extensions.jitsimeet.MediaPresenceExtension.Source;
+import org.jitsi.xmpp.extensions.jitsimeet.SSRCInfoPacketExtension;
 import org.jitsi.xmpp.extensions.jingle.JingleIQ;
 import org.jitsi.xmpp.extensions.jingle.JinglePacketFactory;
+import org.jitsi.xmpp.extensions.jingle.JingleUtils;
 import org.jitsi.xmpp.extensions.jingle.ParameterPacketExtension;
 import org.jitsi.xmpp.extensions.jingle.PayloadTypePacketExtension;
 import org.jitsi.xmpp.extensions.jingle.Reason;
@@ -281,20 +286,6 @@ public final class MucClient implements JireconEventListener
         connection.sendStanza(JinglePacketFactory.createSessionTerminate(localFullJid, remoteFullJid, sid, reason, reasonText));
     }
 
-    /**
-     * Record some session information according Jingle session-init packet.
-     * It's convenient to parse local jid, remote jid, sid, and so on, though
-     * this may seems weird.
-     * 
-     * @param initJiq is the Jingle session-init packet.
-     */
-    private void recordSessionInfo(JingleIQ initJiq)
-    {
-        sid = initJiq.getSID();
-        localFullJid  = initJiq.getTo();
-        remoteFullJid = initJiq.getFrom();
-    }
-
     private JingleIQ initIQ;
     private Object waitForInitPacketSyncRoot = new Object();
 
@@ -304,11 +295,14 @@ public final class MucClient implements JireconEventListener
 
 			switch (iq.getAction()) {
 				case SESSION_INITIATE:
-		            recordSessionInfo(initIQ = iq);
+					initJingleSession(initIQ = iq);
 					synchronized (waitForInitPacketSyncRoot)
 					{
 						waitForInitPacketSyncRoot.notify();
 					}
+					break;
+				case ADDSOURCE:
+				case SOURCEADD:
 					break;
 				default:
 					break;
@@ -363,6 +357,385 @@ public final class MucClient implements JireconEventListener
         return this.initIQ;
     }
 
+    private List<MediaType> supportedMediaTypes;
+    private Map<MediaType, Map<MediaFormat, Byte>> formatAndPTs;
+    private Map<MediaType, DtlsFingerprintPacketExtension> fingerprints;
+    private Map<MediaType, IceUdpTransportPacketExtension> iceTransports;
+
+    /**
+	 * @return the supportedMediaTypes
+	 */
+	public List<MediaType> getSupportedMediaTypes() {
+		return supportedMediaTypes;
+	}
+
+	/**
+	 * @return the formatAndPTs
+	 */
+	public Map<MediaType, Map<MediaFormat, Byte>> getFormatAndPTs() {
+		return formatAndPTs;
+	}
+
+	/**
+	 * @return the fingerprints
+	 */
+	public Map<MediaType, DtlsFingerprintPacketExtension> getFingerprints() {
+		return fingerprints;
+	}
+
+	/**
+	 * @return the iceTransports
+	 */
+	public Map<MediaType, IceUdpTransportPacketExtension> getIceTransports() {
+		return iceTransports;
+	}
+
+    private void initJingleSession(JingleIQ initIq) {
+        sid = initIq.getSID();
+        localFullJid  = initIq.getTo();
+        remoteFullJid = initIq.getFrom();
+
+        // 
+        List<ContentPacketExtension> listContent = initIq.getContentList();
+
+        /**
+<iq
+	to='recorder@recorder.jaime.kidtopi.com/c8b0cdce-fa16-493f-81ad-b57d815cf204'
+	from='testroom@conference.jaime.kidtopi.com/focus'
+	id='cmVjb3JkZXJAcmVjb3JkZXIuamFpbWUua2lkdG9waS5jb20vYzhiMGNkY2UtZmExNi00OTNmLTgxYWQtYjU3ZDgxNWNmMjA0AHM0QWJqLTgyODU2AI3Dq3WHDa5ELaDCtcG7VHM='
+	type='set'>
+	<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate'
+		initiator='focus@auth.jaime.kidtopi.com/focus3253432340751975'
+		sid='4mjoq38iig0e5'>
+		<content name='audio' senders='both' creator='initiator'>
+			<description xmlns='urn:xmpp:jingle:apps:rtp:1'
+				maxptime='60' media='audio'>
+				<payload-type xmlns='urn:xmpp:jingle:apps:rtp:1'
+					name='opus' clockrate='48000' id='111' channels='2'>
+					<parameter xmlns='urn:xmpp:jingle:apps:rtp:1' value='10'
+						name='minptime' />
+					<parameter xmlns='urn:xmpp:jingle:apps:rtp:1' value='1'
+						name='useinbandfec' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='transport-cc' />
+				</payload-type>
+				<payload-type xmlns='urn:xmpp:jingle:apps:rtp:1'
+					id='103' name='ISAC' clockrate='16000' />
+				<payload-type xmlns='urn:xmpp:jingle:apps:rtp:1'
+					id='104' name='ISAC' clockrate='32000' />
+				<payload-type xmlns='urn:xmpp:jingle:apps:rtp:1'
+					id='126' name='telephone-event' clockrate='8000' />
+				<rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0'
+					id='1' uri='urn:ietf:params:rtp-hdrext:ssrc-audio-level' />
+				<rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0'
+					id='5'
+					uri='http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1770662345'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet' owner='jvb' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='2504927419'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/5f12cc4e' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='945621892'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/0ff29808' />
+				</source>
+			</description>
+			<transport xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+				pwd='2e1meo1ni5lhu3g7skpunms6kf' ufrag='427q91dquj8uei'>
+				<fingerprint xmlns='urn:xmpp:jingle:apps:dtls:0'
+					hash='sha-1' setup='actpass' required='false'>C4:D2:89:F8:1E:E7:DD:13:46:DE:96:17:0A:CE:22:7A:52:74:9C:4A</fingerprint>
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					type='host' protocol='udp'
+					id='178407b1edb350034d02a39a117b8b580ffffffffe9d7e475'
+					ip='172.16.11.44' component='1' port='18341' foundation='1'
+					generation='0' priority='2130706431' network='0' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					rel-port='18341' type='srflx' protocol='udp'
+					id='178407b1edb350034d02a39a117b8b5807882e2e2' ip='58.187.9.153'
+					component='1' port='18341' foundation='2' generation='0'
+					network='0' priority='1694498815' rel-addr='172.16.11.44' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					type='host' protocol='udp'
+					id='178407b1edb350034d02a39a117b8b580ffffffffd2bf457d'
+					ip='172.16.11.44' component='2' port='18342' foundation='1'
+					generation='0' priority='2130706430' network='0' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					rel-port='18342' type='srflx' protocol='udp'
+					id='178407b1edb350034d02a39a117b8b580616a43ea' ip='58.187.9.153'
+					component='2' port='18342' foundation='2' generation='0'
+					network='0' priority='1694498814' rel-addr='172.16.11.44' />
+			</transport>
+		</content>
+		<content name='video' senders='both' creator='initiator'>
+			<description xmlns='urn:xmpp:jingle:apps:rtp:1'
+				media='video'>
+				<payload-type xmlns='urn:xmpp:jingle:apps:rtp:1'
+					id='100' name='VP8' clockrate='90000'>
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='ccm' subtype='fir' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='nack' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='nack' subtype='pli' />
+					<parameter xmlns='urn:xmpp:jingle:apps:rtp:1' value='800'
+						name='x-google-start-bitrate' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='transport-cc' />
+				</payload-type>
+				<payload-type xmlns='urn:xmpp:jingle:apps:rtp:1'
+					id='107' name='H264' clockrate='90000'>
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='ccm' subtype='fir' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='nack' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='nack' subtype='pli' />
+					<parameter xmlns='urn:xmpp:jingle:apps:rtp:1' value='800'
+						name='x-google-start-bitrate' />
+					<parameter xmlns='urn:xmpp:jingle:apps:rtp:1'
+						value='42e01f;level-asymmetry-allowed=1;packetization-mode=1;'
+						name='profile-level-id' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='transport-cc' />
+				</payload-type>
+				<payload-type xmlns='urn:xmpp:jingle:apps:rtp:1'
+					id='101' name='VP9' clockrate='90000'>
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='ccm' subtype='fir' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='nack' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='nack' subtype='pli' />
+					<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0'
+						type='transport-cc' />
+					<parameter xmlns='urn:xmpp:jingle:apps:rtp:1' value='800'
+						name='x-google-start-bitrate' />
+				</payload-type>
+				<rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0'
+					id='3'
+					uri='http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time' />
+				<rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0'
+					id='5'
+					uri='http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='4120097836'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet' owner='jvb' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1795212635'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/5f12cc4e' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='2078631139'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/5f12cc4e' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1350511161'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/5f12cc4e' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='3893156471'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/5f12cc4e' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='2472965206'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/5f12cc4e' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='353021661'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/5f12cc4e' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='3869850570'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/0ff29808' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1360448886'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/0ff29808' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='3148520756'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/0ff29808' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='2746650326'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/0ff29808' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1095012019'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/0ff29808' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1426664304'>
+					<ssrc-info xmlns='http://jitsi.org/jitmeet'
+						owner='testroom@conference.jaime.kidtopi.com/0ff29808' />
+				</source>
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1795212635' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='2078631139' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1350511161' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='2472965206' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='3893156471' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='353021661' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1795212635' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1350511161' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='3893156471' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='3869850570' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1360448886' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='3148520756' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1095012019' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='2746650326' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='1426664304' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='3869850570' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='3148520756' />
+				<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0'
+					direction='sendrecv' ssrc='2746650326' />
+			</description>
+			<transport xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+				pwd='4ddfeuh8po1fc0aqbhodkioot1' ufrag='2pfgg1dquj8uev'>
+				<fingerprint xmlns='urn:xmpp:jingle:apps:dtls:0'
+					hash='sha-1' setup='actpass' required='false'>C4:D2:89:F8:1E:E7:DD:13:46:DE:96:17:0A:CE:22:7A:52:74:9C:4A</fingerprint>
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					type='host' protocol='udp'
+					id='178407b1edb350033e4d9b066c6c07960ffffffffc611689f'
+					ip='172.16.11.44' component='1' port='18343' foundation='1'
+					generation='0' priority='2130706431' network='0' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					rel-port='18343' type='srflx' protocol='udp'
+					id='178407b1edb350033e4d9b066c6c0796054bc670c' ip='58.187.9.153'
+					component='1' port='18343' foundation='2' generation='0'
+					network='0' priority='1694498815' rel-addr='172.16.11.44' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					type='host' protocol='udp'
+					id='178407b1edb350033e4d9b066c6c079602b25f1ab' ip='172.16.11.44'
+					component='2' port='18344' foundation='1' generation='0'
+					priority='2130706430' network='0' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					rel-port='18344' type='srflx' protocol='udp'
+					id='178407b1edb350033e4d9b066c6c07960ffffffffb9d0f018'
+					ip='58.187.9.153' component='2' port='18344' foundation='2'
+					generation='0' network='0' priority='1694498814'
+					rel-addr='172.16.11.44' />
+			</transport>
+		</content>
+		<content name='data' senders='both' creator='initiator'>
+			<description xmlns='urn:xmpp:jingle:apps:rtp:1'
+				media='application' />
+			<transport xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+				pwd='2u6nmo0dkvpf4sj2gn9d4meksk' ufrag='2h6b51dquj8uf2'>
+				<rtcp-mux xmlns='urn:xmpp:jingle:transports:ice-udp:1' />
+				<fingerprint xmlns='urn:xmpp:jingle:apps:dtls:0'
+					hash='sha-1' setup='actpass' required='false'>C4:D2:89:F8:1E:E7:DD:13:46:DE:96:17:0A:CE:22:7A:52:74:9C:4A</fingerprint>
+				<sctpmap xmlns='urn:xmpp:jingle:transports:dtls-sctp:1'
+					number='5000' protocol='webrtc-datachannel' streams='1024' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					type='host' network='0'
+					id='178407b1edb3500320ad27bb167137c202a6e96a7' ip='172.16.11.44'
+					component='1' port='4443' foundation='1' generation='0'
+					protocol='ssltcp' priority='2130706431' tcptype='passive' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					type='host' protocol='udp'
+					id='178407b1edb3500320ad27bb167137c202a6eac5c' ip='172.16.11.44'
+					component='1' port='10000' foundation='3' generation='0'
+					priority='2130706431' network='0' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					rel-port='4443' type='srflx' network='0'
+					id='178407b1edb3500320ad27bb167137c20ffffffffb9199514'
+					protocol='ssltcp' ip='58.187.9.153' component='1' port='4443'
+					foundation='2' generation='0' rel-addr='172.16.11.44'
+					priority='1694498815' tcptype='passive' />
+				<candidate xmlns='urn:xmpp:jingle:transports:ice-udp:1'
+					rel-port='10000' type='srflx' protocol='udp'
+					id='178407b1edb3500320ad27bb167137c20ffffffffb919aac9'
+					ip='58.187.9.153' component='1' port='10000' foundation='4'
+					generation='0' network='0' priority='1677724415'
+					rel-addr='172.16.11.44' />
+			</transport>
+		</content>
+		<bridge-session xmlns='http://jitsi.org/protocol/focus'
+			xmlns:stream='http://etherx.jabber.org/streams' id='ffbec0_c2f0d9'></bridge-session>
+	</jingle>
+</iq>
+         */
+        // Init session
+        this.supportedMediaTypes = new ArrayList<MediaType>();
+
+        this.formatAndPTs  = new HashMap<MediaType, Map<MediaFormat, Byte>>();
+        this.fingerprints  = new HashMap<MediaType, DtlsFingerprintPacketExtension>();
+        this.iceTransports = new HashMap<MediaType, IceUdpTransportPacketExtension>();
+
+        MediaFormatFactoryImpl fmtFactory = new MediaFormatFactoryImpl();
+        for (ContentPacketExtension contentPacketExtension : listContent) {
+        	MediaType mediaType = JingleUtils.getMediaType(contentPacketExtension);
+
+        	RtpDescriptionPacketExtension rtpDescriptionPacketExtension = JingleUtils.getRtpDescription(contentPacketExtension);
+        	Map<MediaFormat, Byte> mapMediaFormat = null;
+        	if (rtpDescriptionPacketExtension != null) {
+        		mapMediaFormat = new HashMap<MediaFormat, Byte>();
+                for (PayloadTypePacketExtension payloadTypePacketExt : rtpDescriptionPacketExtension.getPayloadTypes())
+                {
+                    MediaFormat format = fmtFactory.createMediaFormat(
+                    		payloadTypePacketExt.getName(),
+                            payloadTypePacketExt.getClockrate(),
+                            payloadTypePacketExt.getChannels()
+                    );
+                    if (format != null)
+                    	mapMediaFormat.put(format, (byte) (payloadTypePacketExt.getID()));
+                }
+
+                //
+                List<Source> sources = rtpDescriptionPacketExtension.getChildExtensionsOfType(Source.class);
+                for (Source source : sources)
+                {
+                	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
+                	if (ssrcInfo != null)
+                		getOrCreateEndpoint(ssrcInfo.getOwner()).addSsrc(mediaType, Long.valueOf(source.getSSRC()));
+                }
+        	}
+            formatAndPTs.put(mediaType, mapMediaFormat);
+
+            //
+            IceUdpTransportPacketExtension iceUdpTransportPacketExtension = contentPacketExtension.getFirstChildOfType(IceUdpTransportPacketExtension.class);
+            
+            iceTransports.put(mediaType, iceUdpTransportPacketExtension);
+            fingerprints.put(mediaType, iceUdpTransportPacketExtension.getFirstChildOfType(DtlsFingerprintPacketExtension.class));
+
+        	this.supportedMediaTypes.add(mediaType);
+        }
+    }
+
     /**
      * Handle the Jingle presence packet, record the partcipant's information
      * like jid, ssrc.
@@ -371,7 +744,6 @@ public final class MucClient implements JireconEventListener
      */
     private void handlePresencePacket(Presence p)
     {
-        ExtensionElement packetExt = p.getExtension(MediaPresenceExtension.ELEMENT_NAME, MediaPresenceExtension.NAMESPACE);
         MUCUser userExt = (MUCUser) p.getExtension(MUCUser.ELEMENT, MUCUser.NAMESPACE);
 
         /*
@@ -388,33 +760,13 @@ public final class MucClient implements JireconEventListener
             return;
 
         System.out.println("Join: "+participantJid);
-        System.out.println(p.toXML());
 
-        Map<MediaType, Long> ssrcs = new HashMap<MediaType, Long>();
-
-        if (packetExt != null) {
-        	MediaPresenceExtension mediaExt = (MediaPresenceExtension) packetExt;
-            
-        	for (ExtensionElement extensionElement : mediaExt.getChildExtensions())
-        	{
-        		MediaPresenceExtension.Source source = (MediaPresenceExtension.Source)extensionElement;
-                MediaDirection direction = MediaDirection.parseString(source.getDirection());
-
-                if (direction.allowsSending())
-                    ssrcs.put(MediaType.valueOf(source.getElementName()), Long.valueOf(source.getSSRC()));
-            }
-        }
-        
         // Oh, it seems that some participant has left the MUC.
         if (p.getType() == Presence.Type.unavailable)
         {
             removeEndpoint(participantJid);
             fireEvent(new TaskEvent(TaskEvent.Type.PARTICIPANT_LEFT));
         }
-
-        // Otherwise we think that some new participant has joined the MUC.
-        else if(addOrUpdateEndpoint(participantJid, ssrcs))
-        	fireEvent(new TaskEvent(TaskEvent.Type.PARTICIPANT_CAME));
     }
     
     /**
@@ -598,7 +950,7 @@ public final class MucClient implements JireconEventListener
             listeners.remove(listener);
         }
     }
-
+    
     /**
      * Fire a <tt>TaskEvent</tt>, notify listeners we've made new
      * progress which they may interest in.
@@ -613,7 +965,7 @@ public final class MucClient implements JireconEventListener
                 l.handleTaskEvent(event);
         }
     }
-
+    
     /**
      * Handles events coming from the {@link org.jitsi.jirecon.task.Task} which owns
      * us.
@@ -681,35 +1033,18 @@ public final class MucClient implements JireconEventListener
         }
     }
 
-    /**
-     * Add a new endpoint to {@link #endpoints}, or update the stored
-     * information for the endpoint if it is already in the list.
-     *
-     * @param jid The endpoint id.
-     * @param ssrcs The SSRCs of the endpoint, according to media type.
-     *
-     * @return <tt>true</tt> if the endpoint was added to the list, and
-     * <tt>false</tt> otherwise.
-     */
-    private boolean addOrUpdateEndpoint(Jid jid, Map<MediaType, Long> ssrcs)
+    private Endpoint getOrCreateEndpoint(Jid jid)
     {
         synchronized (endpoints)
         {
-            boolean added = false;
-
-            Endpoint endpoint = endpoints.get(jid);
+        	Endpoint endpoint = endpoints.get(jid);
             if (endpoint == null)
             {
-                endpoint = new Endpoint();
-                added = true;
+                logger.info("Add Endpoint " + jid);
+            	endpoints.put(jid, endpoint = new Endpoint(jid));
+            	fireEvent(new TaskEvent(TaskEvent.Type.PARTICIPANT_CAME));
             }
-
-            endpoint.setId(jid);
-            for (MediaType mediaType : new MediaType[] { MediaType.AUDIO, MediaType.VIDEO })
-                endpoint.setSsrc(mediaType, ssrcs.get(mediaType));
-
-            endpoints.put(jid, endpoint);
-            return added;
+            return endpoint;
         }
     }
 
@@ -720,7 +1055,7 @@ public final class MucClient implements JireconEventListener
      */
     private void removeEndpoint(Jid jid)
     {
-        logger.debug("Remove Endpoint " + jid);
+        logger.info("Remove Endpoint " + jid);
         
         synchronized (endpoints)
         {

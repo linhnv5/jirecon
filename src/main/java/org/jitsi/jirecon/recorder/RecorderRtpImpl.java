@@ -87,7 +87,8 @@ import com.sun.media.util.Registry;
  * @author ljnk975
  */
 public class RecorderRtpImpl
-		implements Recorder, ReceiveStreamListener, ActiveSpeakerChangedListener, ControllerListener {
+		implements Recorder, ReceiveStreamListener, ActiveSpeakerChangedListener, ControllerListener
+{
 
 	/**
 	 * The <tt>Logger</tt> used by the <tt>RecorderRtpImpl</tt> class and its
@@ -887,7 +888,7 @@ public class RecorderRtpImpl
 
 		File f;
 		try {
-			prefix = prefix + File.separator + streamRecorderManager.getEndpointId(ssrc, mediaType).getResourceOrNull();
+			prefix = prefix + File.separator + streamRecorderManager.getEndpointId(ssrc, mediaType);
 			if (!(f = new File(prefix)).exists())
 				f.mkdirs();
 			prefix = prefix + File.separator + mediaType.toString();

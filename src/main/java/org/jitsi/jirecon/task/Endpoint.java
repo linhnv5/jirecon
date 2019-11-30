@@ -21,7 +21,6 @@ package org.jitsi.jirecon.task;
 
 import java.util.*;
 import org.jitsi.utils.MediaType;
-import org.jxmpp.jid.BareJid;
 import org.jxmpp.jid.Jid;
 
 /**
@@ -44,9 +43,10 @@ public class Endpoint
     /**
      * Map between <tt>MediaType</tt> and ssrc. Notice that only audio or video has ssrc.
      */
-    private Map<MediaType, Long> ssrcs = new HashMap<MediaType, Long>();
+    private Map<MediaType, List<Long>> ssrcs = new HashMap<MediaType, List<Long>>();
 
-    public Endpoint() {
+    public Endpoint(Jid id) {
+    	this.id = id;
     }
 
     public void setId(Jid id)
@@ -54,28 +54,27 @@ public class Endpoint
         this.id = id;
     }
 
-    public void setSsrc(MediaType mediaType, Long ssrc)
-    {
-    	if (ssrc != null)
-    		ssrcs.put(mediaType, ssrc);
-    }
-
     public Jid getId()
     {
         return id;
     }
 
-    public BareJid getBareId()
+    public void addSsrc(MediaType mediaType, Long ssrc)
     {
-        return id.asBareJid();
+    	if (ssrc != null) {
+    		List<Long> listSsrc = ssrcs.get(mediaType);
+    		if (listSsrc == null)
+    			ssrcs.put(mediaType, listSsrc = new ArrayList<Long>());
+    		listSsrc.add(ssrc);
+    	}
     }
 
-    public Map<MediaType, Long> getSsrcs()
+    public Map<MediaType, List<Long>> getSsrcs()
     {
         return ssrcs;
     }
 
-    public long getSsrc(MediaType mediaType)
+    public List<Long> getSsrc(MediaType mediaType)
     {
         return ssrcs.get(mediaType);
     }

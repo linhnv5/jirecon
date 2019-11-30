@@ -62,7 +62,6 @@ public class Main
         @Override
         public void handleEvent(TaskManagerEvent evt)
         {
-        	System.out.println("Evt: "+evt.getType());
             if (evt.getType() == TaskManagerEvent.Type.TASK_ABORTED || evt.getType() == TaskManagerEvent.Type.TASK_FINISED)
             {
                 System.out.println("Task: " + evt.getMucJid() + " " + evt.getType());
