@@ -189,9 +189,6 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
         taskExecutor   = Executors.newSingleThreadExecutor(new HandlerThreadFactory());
         transportMgr   = new IceUdpTransportManager();
         dtlsControlMgr = new DtlsControlManager();
-        recorderMgr    = new StreamRecorderManager();
-        recorderMgr.addTaskEventListener(this);
-        recorderMgr.init(savingDir, dtlsControlMgr.getAllDtlsControl());
     }
 
     /**
@@ -262,23 +259,28 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
         logger.info("JireconTask event: " + event.getType());
 
         System.out.println("Evt: "+event.getType());
-        if (event.getType() == MucEvent.Type.PARTICIPANT_CAME)
-            recorderMgr.setEndpoints(mucClient.getEndpoints());
-        else if (event.getType() == MucEvent.Type.PARTICIPANT_LEFT)
-        {
-            List<Endpoint> endpoints = mucClient.getEndpoints();
+        switch (event.getType()) {
+        	case SOURCE_ADD:
+        	case SOURCE_REMOVE:
+                recorderMgr.updateSynchronizers();
+                break;
 
-            // Oh, it seems that all participants have left the MUC(except Jirecon
-            // or other participants which only receive data). It's time to
-            // finish the recording.
-            if (endpoints.isEmpty())
-            {
-                stop();
-                fireEvent(new TaskEvent(this.mucJid, TaskEvent.Type.TASK_FINISED));
-            }
-            else
-                recorderMgr.setEndpoints(endpoints);
-        }
+        	case PARTICIPANT_LEFT:
+                Collection<Endpoint> endpoints = mucClient.getEndpoints();
+
+                // Oh, it seems that all participants have left the MUC(except Jirecon
+                // or other participants which only receive data). It's time to
+                // finish the recording.
+                if (endpoints.isEmpty())
+                {
+                    stop();
+                    fireEvent(new TaskEvent(this.mucJid, TaskEvent.Type.TASK_FINISED));
+                }
+        		break;
+        		
+        	default:
+        		break;
+		}
     }
     
     /**
@@ -348,13 +350,18 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
             mucClient.addMucEventListener(this);
             addEventListener(mucClient);
 
-            /* 2. Wait for session-init packet. */
+            /* 2. Init recorder manager */
+            recorderMgr    = new StreamRecorderManager(mucClient);
+            recorderMgr.addTaskEventListener(this);
+            recorderMgr.init(outputDir, dtlsControlMgr.getAllDtlsControl());
+
+            /* 3. Wait for session-init packet. */
             mucClient.waitForInitPacket();
             
             List <MediaType> supportedMediaTypes = mucClient.getSupportedMediaTypes();
 
             /*
-             * 3.1 Prepare for sending session-accept packet.
+             * 4.1 Prepare for sending session-accept packet.
              */
             // Media format and payload type id.
             Map<MediaType, Map<MediaFormat, Byte>> formatAndPTs = mucClient.getFormatAndPTs();
@@ -375,18 +382,18 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
             for (MediaType mediaType : supportedMediaTypes)
                 fingerprintPEs.put(mediaType, dtlsControlMgr.createFingerprintPacketExt(mediaType));
 
-            /* 3.2 Send session-accept packet. */
+            /* 4.2 Send session-accept packet. */
             Map<MediaType, Long> localSsrcs = recorderMgr.getLocalSsrcs();
             mucClient.sendAcceptPacket(formatAndPTs, localSsrcs, transportPEs, fingerprintPEs);
 
-            /* 3.3 Wait for session-ack packet. */
+            /* 4.3 Wait for session-ack packet. */
             // Go on with ICE, no need to waste an RTT here.
 //            jingleSessionMgr.waitForResultPacket();
 
             //
             
             /*
-             * 4.1 Prepare for ICE connectivity establishment. Harvest remote
+             * 5.1 Prepare for ICE connectivity establishment. Harvest remote
              * candidates.
              */
             Map<MediaType, IceUdpTransportPacketExtension> remoteTransportPEs = new HashMap<MediaType, IceUdpTransportPacketExtension>();
@@ -395,12 +402,12 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
             transportMgr.addRemoteCandidates(remoteTransportPEs);
 
             /*
-             * 4.2 Start establishing ICE connectivity. Warning: that this method is asynchronous method.
+             * 5.2 Start establishing ICE connectivity. Warning: that this method is asynchronous method.
              */
             transportMgr.startConnectivityEstablishment();
 
             /*
-             * 4.3 Wait for ICE to complete (or fail).
+             * 5.3 Wait for ICE to complete (or fail).
              */
             if(!transportMgr.wrapupConnectivityEstablishment())
             {
@@ -411,7 +418,7 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
             logger.info("ICE connection established (" + this.mucJid + ")");
 
             /*
-             * 5.1 Prepare for recording. Once transport manager has selected
+             * 6.1 Prepare for recording. Once transport manager has selected
              * candidates pairs, we can get stream connectors from it, otherwise
              * we have to wait. Notice that if ICE connectivity establishment
              * doesn't get selected pairs for a specified time(MAX_WAIT_TIME),
@@ -428,7 +435,7 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
                 mediaStreamTargets.put(mediaType, mediaStreamTarget);
             }
 
-            /* 5.2 Start recording. */
+            /* 6.2 Start recording. */
             logger.info("<=================RECORDING=================>");
             recorderMgr.startRecording(formatAndPTs, streamConnectors, mediaStreamTargets);
 

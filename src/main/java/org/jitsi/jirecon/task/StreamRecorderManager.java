@@ -30,6 +30,7 @@ import org.jitsi.impl.neomedia.recording.*;
 import org.jitsi.impl.neomedia.rtp.translator.*;
 import org.jitsi.jirecon.datachannel.*;
 import org.jitsi.jirecon.muc.Endpoint;
+import org.jitsi.jirecon.muc.MucClient;
 import org.jitsi.jirecon.muc.MucEvent.*;
 import org.jitsi.jirecon.recorder.RecorderRtpImpl;
 import org.jitsi.jirecon.recorder.SynchronizerImpl;
@@ -95,16 +96,6 @@ public class StreamRecorderManager
      * something important, it will notify them.
      */
     private final List<MucEventListener> listeners = new ArrayList<MucEventListener>();
-
-    /**
-     * Active endpoints in the meeting currently.
-     */
-    private List<Endpoint> endpoints = new ArrayList<Endpoint>();
-
-    /**
-     * The endpoints sync root.
-     */
-    private Object endpointsSyncRoot = new Object();
 
     /**
      * Map between <tt>MediaType</tt> and local recorder's ssrc.
@@ -400,9 +391,15 @@ public class StreamRecorderManager
     }
 
     /**
+     * The instance of <tt>JireconSession</tt>.
+     */
+    private MucClient mucClient;
+
+    /**
      * Constructor
      */
-    public StreamRecorderManager() {
+    public StreamRecorderManager(MucClient mucClient) {
+    	this.mucClient = mucClient;
 	}
 
     /**
@@ -805,24 +802,22 @@ public class StreamRecorderManager
      */
     private long getAssociatedSsrc(long ssrc, MediaType getMediaType, MediaType mediaType)
     {
-        synchronized (endpointsSyncRoot)
+    	Collection<Endpoint> endpoints = mucClient.getEndpoints();
+        if (endpoints != null && !endpoints.isEmpty())
         {
-            if (endpoints != null && !endpoints.isEmpty())
+            for (Endpoint endpoint : endpoints)
             {
-                for (Endpoint endpoint : endpoints)
-                {
-                    Map<MediaType, List<Long>> ssrcs = endpoint.getSsrcs();
+                Map<MediaType, List<Long>> ssrcs = endpoint.getSsrcs();
 
-                    if (ssrcs.size() < 2)
-                        continue;
+                if (ssrcs.size() < 2)
+                    continue;
 
-                    if (ssrcs.get(getMediaType).contains(ssrc))
-                        return ssrcs.get(mediaType).get(0);
-                }
+                if (ssrcs.get(getMediaType).contains(ssrc))
+                    return ssrcs.get(mediaType).get(0);
             }
-            else
-                logger.log(Level.WARNING, "The endpoints collection is empty!");
         }
+        else
+            logger.log(Level.WARNING, "The endpoints collection is empty!");
         return -1;
     }
 
@@ -839,21 +834,19 @@ public class StreamRecorderManager
      */
     private long getEndpointSsrc(String endpointId, MediaType mediaType)
     {
-        synchronized (endpointsSyncRoot)
+    	Collection<Endpoint> endpoints = mucClient.getEndpoints();
+        if (endpoints != null && !endpoints.isEmpty())
         {
-            if (endpoints != null && !endpoints.isEmpty())
+            for (Endpoint endpoint : endpoints)
             {
-                for (Endpoint endpoint : endpoints)
-                {
-                    if (endpoint.getId().toString().compareTo(endpointId) == 0)
-                        return endpoint.getSsrc(mediaType).get(0);
-                }
+                if (endpoint.getId().toString().compareTo(endpointId) == 0)
+                    return endpoint.getSsrc(mediaType).get(0);
             }
-            else
-                logger.log(Level.WARNING, "The endpoints collection is empty!");
-
-            return -1;
         }
+        else
+            logger.log(Level.WARNING, "The endpoints collection is empty!");
+
+        return -1;
     }
 
     /**
@@ -866,59 +859,45 @@ public class StreamRecorderManager
      */
     public String getEndpointId(long ssrc, MediaType mediaType)
     {
-        synchronized (endpointsSyncRoot)
+    	Collection<Endpoint> endpoints = mucClient.getEndpoints();
+        if (endpoints != null && !endpoints.isEmpty())
         {
-            if (endpoints != null && !endpoints.isEmpty())
+        	for (Endpoint endpoint : endpoints)
             {
-            	for (Endpoint endpoint : endpoints)
-                {
-                    if (endpoint.getSsrc(mediaType).contains(ssrc))
-                        return endpoint.getId().toString();
-                }
+                if (endpoint.getSsrc(mediaType).contains(ssrc))
+                    return endpoint.getId().toString();
             }
-            else
-                logger.log(Level.WARNING, "The endpoints collection is empty!");
-            return null;
         }
+        else
+            logger.log(Level.WARNING, "The endpoints collection is empty!");
+        return null;
     }
 
     /**
-     * {@inheritDoc}
+     * Call when source change
      */
-    public void setEndpoints(List<Endpoint> newEndpoints)
+    public void updateSynchronizers()
     {
-    	System.out.println("Endpoints: "+newEndpoints.size());
-        synchronized (endpointsSyncRoot)
+    	Collection<Endpoint> endpoints = mucClient.getEndpoints();
+        for (Endpoint endpoint : endpoints)
         {
-            endpoints = newEndpoints;
-            updateSynchronizers();
-        }
-    }
-
-    private void updateSynchronizers()
-    {
-        synchronized (endpointsSyncRoot)
-        {
-            for (Endpoint endpoint : endpoints)
+            final String endpointId = endpoint.getId().toString();
+            for (Entry<MediaType, List<Long>> ssrc : endpoint.getSsrcs().entrySet())
             {
-                final String endpointId = endpoint.getId().toString();
-                for (Entry<MediaType, List<Long>> ssrc : endpoint.getSsrcs().entrySet())
-                {
-                    Recorder recorder = recorders.get(ssrc.getKey());
+                Recorder recorder = recorders.get(ssrc.getKey());
 
-                    // During the ICE connectivity establishment and after we've
-                    // joined the MUC, there is a high probability that we
-                    // process a media type/ssrc for which we *don't* have a
-                    // recorder yet (because we get XMPP presence packets before
-                    // the recorders are prepared (see method
-                    // prepareRecorders())
-                    if (recorder != null) {
-                    	for (Long ssrcl : ssrc.getValue())
-                    		recorder.getSynchronizer().setEndpoint(ssrcl, endpointId);
-                    }
-
-                    logger.info("endpoint: " + endpointId + " " + ssrc.getKey() + " " + ssrc.getValue());
+                // During the ICE connectivity establishment and after we've
+                // joined the MUC, there is a high probability that we
+                // process a media type/ssrc for which we *don't* have a
+                // recorder yet (because we get XMPP presence packets before
+                // the recorders are prepared (see method
+                // prepareRecorders())
+                if (recorder != null) {
+                	for (Long ssrcl : ssrc.getValue())
+                		recorder.getSynchronizer().setEndpoint(ssrcl, endpointId);
                 }
+
+                logger.info("endpoint: " + endpointId + " " + ssrc.getKey() + " " + ssrc.getValue());
             }
         }
     }

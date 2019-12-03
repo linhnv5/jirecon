@@ -74,6 +74,16 @@ public class MucEvent
         PARTICIPANT_LEFT("PARTICIPANT_LEFT"),
 
         /**
+         * Add source came.
+         */
+        SOURCE_ADD("SOURCE_ADD"),
+
+        /**
+         * Remove source came.
+         */
+        SOURCE_REMOVE("SOURCE_REMOVE"),
+
+        /**
          * Recorder has broken for some reasons.
          */
         RECORDER_ABORTED("RECORDER_ABORTED");

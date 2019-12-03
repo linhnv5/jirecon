@@ -305,12 +305,14 @@ public final class MucClient implements TaskEventListener
 			        listContent = iq.getContentList();
 			        for (ContentPacketExtension content : listContent)
 			        	this.addSource(content);
+		            fireEvent(new MucEvent(MucEvent.Type.SOURCE_ADD));
 					break;
 				case REMOVESOURCE:
 				case SOURCEREMOVE:
 			        listContent = iq.getContentList();
 			        for (ContentPacketExtension content : listContent)
 			        	this.removeSource(content);
+		            fireEvent(new MucEvent(MucEvent.Type.SOURCE_REMOVE));
 					break;
 				default:
 					break;
@@ -411,8 +413,10 @@ public final class MucClient implements TaskEventListener
             for (Source source : sources)
             {
             	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
-            	if (ssrcInfo != null)
-            		getOrCreateEndpoint(ssrcInfo.getOwner()).addSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            	if (ssrcInfo != null) {
+            		System.out.println("Add Source: "+source.getSSRC()+" id="+ssrcInfo.getOwner());
+            		getEndpoint(ssrcInfo.getOwner()).addSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            	}
             }
     	}
 	}
@@ -430,8 +434,10 @@ public final class MucClient implements TaskEventListener
             for (Source source : sources)
             {
             	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
-            	if (ssrcInfo != null)
-            		getOrCreateEndpoint(ssrcInfo.getOwner()).removeSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            	if (ssrcInfo != null) {
+            		System.out.println("Remove Source: "+source.getSSRC()+" id="+ssrcInfo.getOwner());
+            		getEndpoint(ssrcInfo.getOwner()).removeSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            	}
             }
     	}
 	}
@@ -520,11 +526,11 @@ public final class MucClient implements TaskEventListener
             removeEndpoint(participantJid);
             fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_LEFT));
         }
-        else
-        {
-        	getOrCreateEndpoint(participantJid);
-            fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_CAME));
-        }
+//        else
+//        {
+//        	getEndpoint(participantJid);
+//            fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_CAME));
+//        }
     }
     
     /**
@@ -783,15 +789,22 @@ public final class MucClient implements TaskEventListener
     /**
      * Get all endpoint in this conference
      */
-    public List<Endpoint> getEndpoints()
+    public Collection<Endpoint> getEndpoints()
     {
         synchronized (endpoints)
         {
-            return new LinkedList<Endpoint>(endpoints.values());
+            return endpoints.values();
         }
     }
 
-    private Endpoint getOrCreateEndpoint(Jid jid)
+    /**
+     * Get an endpoint with the given JID specified endpoint. <br/>
+     * If endpoint not exists then create endpoint and return
+     * 
+     * @param jid Indicate which endpoint to remove.
+     * @return endpoint
+     */
+    private Endpoint getEndpoint(Jid jid)
     {
         synchronized (endpoints)
         {
