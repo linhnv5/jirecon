@@ -147,8 +147,7 @@ public class IceUdpDtlsLink
                 }
 
                 // Pass network packet to SCTP stack
-                sctpSocket.onConnIn(raw.getBuffer(), raw.getOffset(),
-                    raw.getLength());
+                sctpSocket.onConnIn(raw.getBuffer(), raw.getOffset(), raw.getLength());
             }
             while (true);
         }

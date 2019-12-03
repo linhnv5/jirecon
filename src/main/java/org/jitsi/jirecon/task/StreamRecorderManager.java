@@ -29,11 +29,11 @@ import java.util.logging.Logger;
 import org.jitsi.impl.neomedia.recording.*;
 import org.jitsi.impl.neomedia.rtp.translator.*;
 import org.jitsi.jirecon.datachannel.*;
-import org.jitsi.jirecon.muc.Endpoint;
-import org.jitsi.jirecon.muc.MucClient;
-import org.jitsi.jirecon.muc.MucEvent.*;
 import org.jitsi.jirecon.recorder.RecorderRtpImpl;
 import org.jitsi.jirecon.recorder.SynchronizerImpl;
+import org.jitsi.jirecon.xmpp.ChatRoom;
+import org.jitsi.jirecon.xmpp.Endpoint;
+import org.jitsi.jirecon.xmpp.XmppEvent.*;
 import org.jitsi.service.libjitsi.*;
 import org.jitsi.service.neomedia.*;
 import org.jitsi.service.neomedia.format.*;
@@ -393,12 +393,12 @@ public class StreamRecorderManager
     /**
      * The instance of <tt>JireconSession</tt>.
      */
-    private MucClient mucClient;
+    private ChatRoom mucClient;
 
     /**
      * Constructor
      */
-    public StreamRecorderManager(MucClient mucClient) {
+    public StreamRecorderManager(ChatRoom mucClient) {
     	this.mucClient = mucClient;
 	}
 
@@ -513,7 +513,7 @@ public class StreamRecorderManager
          * NOTE: We don't need to stop translators because those media streams
          * will do it.
          */
-//        stopTranslators();
+        stopTranslators();
     }
 
     /**
@@ -719,12 +719,12 @@ public class StreamRecorderManager
      * Actually we don't stop <tt>RTPTranslator</tt>s manually, because it will
      * be closed automatically by recorders.
      */
-//    private void stopTranslators()
-//    {
-//        for (Entry<MediaType, RTPTranslator> e : rtpTranslators.entrySet())
-//            e.getValue().dispose();
-//        rtpTranslators.clear();
-//    }
+    private void stopTranslators()
+    {
+        for (Entry<MediaType, RTPTranslator> e : rtpTranslators.entrySet())
+            e.getValue().dispose();
+        rtpTranslators.clear();
+    }
 
     /**
      * Create data channel. We need <tt>DtlsControl</tt> to initialize it.

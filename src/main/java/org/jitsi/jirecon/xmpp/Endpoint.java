@@ -17,11 +17,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.muc;
+package org.jitsi.jirecon.xmpp;
 
 import java.util.*;
 import org.jitsi.utils.MediaType;
-import org.jxmpp.jid.Jid;
+import org.jxmpp.jid.EntityFullJid;
 
 /**
  * Data structure that encapsulates endpoint.
@@ -36,27 +36,28 @@ public class Endpoint
 {
 
     /**
-     * Endpoint id.
+     * Full MUC address:
+     * room_name@muc.server.net/nickname
      */
-    private Jid id;
+    private EntityFullJid occupantJid;
 
 	/**
      * Map between <tt>MediaType</tt> and ssrc. Notice that only audio or video has ssrc.
      */
     private Map<MediaType, List<Long>> ssrcs = new HashMap<MediaType, List<Long>>();
 
-    public Endpoint(Jid id) {
-    	this.id = id;
+    public Endpoint(EntityFullJid id) {
+    	this.occupantJid = id;
     }
 
-    public void setId(Jid id)
+    public void setId(EntityFullJid id)
     {
-        this.id = id;
+        this.occupantJid = id;
     }
 
-    public Jid getId()
+    public EntityFullJid getId()
     {
-        return id;
+        return occupantJid;
     }
 
 	public void addSsrc(MediaType mediaType, Long ssrc)
@@ -88,9 +89,17 @@ public class Endpoint
         return ssrcs.get(mediaType);
     }
 
+    public boolean isEmpty()
+    {
+    	for (Map.Entry<MediaType, List<Long>> ssrc : ssrcs.entrySet())
+    		if (!ssrc.getValue().isEmpty())
+    			return false;
+    	return true;
+    }
+
     @Override
     public String toString() {
-    	return this.id.toString();
+    	return this.occupantJid.toString();
     }
 
 }

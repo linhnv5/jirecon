@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.muc;
+package org.jitsi.jirecon.xmpp;
 
 /**
  * Task event which can be used by <tt>JireconSession</tt> and
@@ -25,9 +25,9 @@ package org.jitsi.jirecon.muc;
  * <tt>JireconTask</tt>.
  * 
  * @author lishunyang
- * @see MucEvent.Type
+ * @see XmppEvent.Type
  */
-public class MucEvent
+public class XmppEvent
 {
 
 	/**
@@ -40,7 +40,7 @@ public class MucEvent
      * 
      * @param type
      */
-    public MucEvent(Type type)
+    public XmppEvent(Type type)
     {
         this.type = type;
     }
@@ -106,7 +106,7 @@ public class MucEvent
      * <tt>TaskEvent</tt> listener.
      * 
      * @author lishunyang
-     * @see MucEvent
+     * @see XmppEvent
      * 
      */
     public interface MucEventListener
@@ -116,7 +116,7 @@ public class MucEvent
          * 
          * @param event
          */
-        public void handleMucEvent(MucEvent event);
+        public void handleMucEvent(XmppEvent event);
     }
 
 }

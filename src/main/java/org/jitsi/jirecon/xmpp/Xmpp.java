@@ -1,4 +1,4 @@
-package org.jitsi.jirecon.muc;
+package org.jitsi.jirecon.xmpp;
 
 import java.io.IOException;
 import java.security.cert.CertificateException;
@@ -39,7 +39,7 @@ import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
  * @author ljnk975
  *
  */
-public final class MucClientManager
+public final class Xmpp
 {
 
     /**
@@ -61,7 +61,7 @@ public final class MucClientManager
     /**
      * Map of MUC joined
      */
-    private Map<String, MucClient> mucClients = new HashMap<String, MucClient>();
+    private Map<String, ChatRoom> mucClients = new HashMap<String, ChatRoom>();
 
     /**
      * Register our <tt>PacketExtensionProvider</tt>s with Smack's
@@ -224,7 +224,7 @@ public final class MucClientManager
 			public IQ handleIQRequest(IQ packet) {
                 logger.info("["+packet.getClass().getName() + "]<---: " + packet);
                 System.out.println(packet.toXML());
-				MucClient mucClient = mucClients.get(packet.getFrom().getLocalpartOrNull().toString());
+				ChatRoom mucClient = mucClients.get(packet.getFrom().getLocalpartOrNull().toString());
 				if (mucClient != null)
 					return mucClient.handleIQRequest(packet);
 				return null;
@@ -241,10 +241,10 @@ public final class MucClientManager
      * @return The MUC Client
      * @throws Exception if failed to join MUC.
      */
-    public MucClient joinMUC(String mucJid, String nickname) 
+    public ChatRoom joinMUC(String mucJid, String nickname) 
         throws Exception
     {
-    	MucClient mucClient = new MucClient(connection, mucJid+"@"+mucDomain, nickname);
+    	ChatRoom mucClient = new ChatRoom(connection, mucJid+"@"+mucDomain, nickname);
     	this.mucClients.put(mucJid, mucClient);
     	return mucClient;
     }

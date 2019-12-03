@@ -24,9 +24,9 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.jitsi.jirecon.muc.MucClientManager;
 import org.jitsi.jirecon.task.TaskEvent.*;
 import org.jitsi.jirecon.utils.*;
+import org.jitsi.jirecon.xmpp.Xmpp;
 import org.jitsi.service.configuration.*;
 import org.jitsi.service.libjitsi.*;
 import org.jivesoftware.smack.*;
@@ -57,7 +57,7 @@ public final class TaskManager implements TaskEventListener
      */
     private final Map<String, Task> tasks = new HashMap<String, Task>();
 
-    private MucClientManager mucClientManager = new MucClientManager();
+    private Xmpp mucClientManager = new Xmpp();
 
     /**
      * The base directory to save recording files. <tt>JireconImpl</tt> will

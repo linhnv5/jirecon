@@ -25,13 +25,13 @@ import java.util.concurrent.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.jitsi.jirecon.muc.Endpoint;
-import org.jitsi.jirecon.muc.MucClient;
-import org.jitsi.jirecon.muc.MucClientManager;
-import org.jitsi.jirecon.muc.MucEvent;
-import org.jitsi.jirecon.muc.MucEvent.*;
 import org.jitsi.jirecon.task.TaskEvent.*;
 import org.jitsi.jirecon.utils.*;
+import org.jitsi.jirecon.xmpp.ChatRoom;
+import org.jitsi.jirecon.xmpp.Endpoint;
+import org.jitsi.jirecon.xmpp.XmppEvent;
+import org.jitsi.jirecon.xmpp.Xmpp;
+import org.jitsi.jirecon.xmpp.XmppEvent.*;
 import org.jitsi.service.configuration.*;
 import org.jitsi.service.libjitsi.*;
 import org.jitsi.service.neomedia.*;
@@ -67,12 +67,12 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
     /**
      * MUC Manager
      */
-    private MucClientManager mucClientManager;
+    private Xmpp mucClientManager;
 
     /**
      * The instance of <tt>JireconSession</tt>.
      */
-    private MucClient mucClient;
+    private ChatRoom mucClient;
 
     /**
      * The instance of <tt>JireconTransportManager</tt>.
@@ -170,7 +170,7 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
      *            used to send/receive Jingle packet.
      * @param savingDir indicates where we should output the media files.
      */
-    public void init(String mucJid, MucClientManager mucClientManager, String savingDir)
+    public void init(String mucJid, Xmpp mucClientManager, String savingDir)
     {
         logger.info(this.getClass() + " init");
 
@@ -254,7 +254,7 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
      * {@inheritDoc}
      */
     @Override
-    public void handleMucEvent(MucEvent event)
+    public void handleMucEvent(XmppEvent event)
     {
         logger.info("JireconTask event: " + event.getType());
 

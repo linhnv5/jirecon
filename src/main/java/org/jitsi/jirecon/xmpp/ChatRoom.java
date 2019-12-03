@@ -17,16 +17,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.muc;
+package org.jitsi.jirecon.xmpp;
 
 import java.util.*;
 
 import net.java.sip.communicator.util.*;
 
 import org.jitsi.impl.neomedia.format.MediaFormatFactoryImpl;
-import org.jitsi.jirecon.muc.MucEvent.MucEventListener;
 import org.jitsi.jirecon.task.TaskEvent;
 import org.jitsi.jirecon.task.TaskEvent.TaskEventListener;
+import org.jitsi.jirecon.xmpp.XmppEvent.MucEventListener;
 import org.jitsi.service.libjitsi.*;
 import org.jitsi.service.neomedia.*;
 import org.jitsi.service.neomedia.format.*;
@@ -40,7 +40,6 @@ import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.CreatorEnum;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.SendersEnum;
 import org.jitsi.xmpp.extensions.jitsimeet.MediaPresenceExtension.Source;
 import org.jitsi.xmpp.extensions.jitsimeet.SSRCInfoPacketExtension;
-import org.jitsi.xmpp.extensions.jitsimeet.UserInfoPacketExt;
 import org.jitsi.xmpp.extensions.jingle.JingleIQ;
 import org.jitsi.xmpp.extensions.jingle.JinglePacketFactory;
 import org.jitsi.xmpp.extensions.jingle.JingleUtils;
@@ -59,6 +58,7 @@ import org.jivesoftware.smackx.muc.*;
 import org.jivesoftware.smackx.muc.packet.MUCUser;
 import org.jivesoftware.smackx.nick.packet.Nick;
 import org.jxmpp.jid.EntityBareJid;
+import org.jxmpp.jid.EntityFullJid;
 import org.jxmpp.jid.Jid;
 import org.jxmpp.jid.impl.JidCreate;
 import org.jxmpp.jid.parts.Localpart;
@@ -71,13 +71,13 @@ import org.jxmpp.jid.parts.Resourcepart;
  * @author Boris Grozev
  * 
  */
-public final class MucClient implements TaskEventListener
+public final class ChatRoom implements TaskEventListener
 {
 
 	/**
      * The <tt>Logger</tt>, used to log messages to standard output.
      */
-    private static final Logger logger = Logger.getLogger(MucClient.class.getName());
+    private static final Logger logger = Logger.getLogger(ChatRoom.class.getName());
     
     /**
      * Maximum wait time in milliseconds.
@@ -138,7 +138,7 @@ public final class MucClient implements TaskEventListener
      * @param connection is used for send/receive XMPP packet.
      * @throws Exception  if failed to join MUC.
      */
-    MucClient(XMPPConnection connection, String mucJid, String nickname)
+    ChatRoom(XMPPConnection connection, String mucJid, String nickname)
     		throws Exception
     {
         this.connection = connection;
@@ -208,12 +208,9 @@ public final class MucClient implements TaskEventListener
             }
         }
 
-        Stanza presence = new Presence(Presence.Type.available);
+        Presence presence = new Presence(Presence.Type.available);
         presence.setTo(muc.getRoom());
         presence.addExtension(new Nick(NICKNAME));
-        UserInfoPacketExt userInfoPacketExt = new UserInfoPacketExt();
-        userInfoPacketExt.setIsRobot(true);
-        presence.addExtension(userInfoPacketExt);
 //        presence.addExtension(new RecorderExtension(null));
         connection.sendStanza(presence);
 
@@ -312,14 +309,14 @@ public final class MucClient implements TaskEventListener
 			        listContent = iq.getContentList();
 			        for (ContentPacketExtension content : listContent)
 			        	this.addSource(content);
-		            fireEvent(new MucEvent(MucEvent.Type.SOURCE_ADD));
+		            fireEvent(new XmppEvent(XmppEvent.Type.SOURCE_ADD));
 					break;
 				case REMOVESOURCE:
 				case SOURCEREMOVE:
 			        listContent = iq.getContentList();
 			        for (ContentPacketExtension content : listContent)
 			        	this.removeSource(content);
-		            fireEvent(new MucEvent(MucEvent.Type.SOURCE_REMOVE));
+		            fireEvent(new XmppEvent(XmppEvent.Type.SOURCE_REMOVE));
 					break;
 				default:
 					break;
@@ -422,8 +419,9 @@ public final class MucClient implements TaskEventListener
             	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
             	if (ssrcInfo != null && !ssrcInfo.getOwner().toString().equals("jvb")) {
             		System.out.println("Add Source: "+source.getSSRC()+" id="+ssrcInfo.getOwner());
-            		Endpoint endpoint = getEndpoint(ssrcInfo.getOwner());
-            		endpoint.addSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            		Endpoint endpoint = getEndpoint(ssrcInfo.getOwner().asEntityFullJidIfPossible());
+            		if (endpoint != null)
+            			endpoint.addSsrc(mediaType, Long.valueOf(source.getSSRC()));
             	}
             }
     	}
@@ -444,10 +442,13 @@ public final class MucClient implements TaskEventListener
             	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
             	if (ssrcInfo != null) {
             		System.out.println("Remove Source: "+source.getSSRC()+" id="+ssrcInfo.getOwner());
-            		Endpoint endpoint = getEndpoint(ssrcInfo.getOwner());
-            		endpoint.removeSsrc(mediaType, Long.valueOf(source.getSSRC()));
-            		if (endpoint.getSsrcs().isEmpty())
-            			removeEndpoint(ssrcInfo.getOwner());
+            		Endpoint endpoint = getEndpoint(ssrcInfo.getOwner().asEntityFullJidIfPossible());
+            		if (endpoint != null)
+            		{
+                		endpoint.removeSsrc(mediaType, Long.valueOf(source.getSSRC()));
+                		if (endpoint.isEmpty())
+                			removeEndpoint(endpoint.getId());
+            		}
             	}
             }
     	}
@@ -533,12 +534,12 @@ public final class MucClient implements TaskEventListener
         if (p.getType() == Presence.Type.unavailable)
         {
         	removeParticipant(participantJid);
-            fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_LEFT));
+            fireEvent(new XmppEvent(XmppEvent.Type.PARTICIPANT_LEFT));
         }
         else
         {
-        	addParticipant(participantJid, p.getFrom());
-            fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_CAME));
+        	addParticipant(participantJid, p.getFrom().asEntityFullJidIfPossible());
+            fireEvent(new XmppEvent(XmppEvent.Type.PARTICIPANT_CAME));
         }
     }
     
@@ -730,7 +731,7 @@ public final class MucClient implements TaskEventListener
      * 
      * @param event
      */
-    private void fireEvent(MucEvent event)
+    private void fireEvent(XmppEvent event)
     {
         synchronized (listeners)
         {
@@ -813,7 +814,7 @@ public final class MucClient implements TaskEventListener
      * @param jid Indicate which endpoint to remove.
      * @return endpoint
      */
-    private Endpoint getEndpoint(Jid jid)
+    private Endpoint getEndpoint(EntityFullJid jid)
     {
         synchronized (endpoints)
         {
@@ -832,7 +833,7 @@ public final class MucClient implements TaskEventListener
      * 
      * @param jid Indicate which endpoint to remove.
      */
-    private void removeEndpoint(Jid jid)
+    private void removeEndpoint(EntityFullJid jid)
     {
         logger.info("Remove Endpoint " + jid);
         
@@ -842,7 +843,7 @@ public final class MucClient implements TaskEventListener
         }
     }
 
-    private void addParticipant(Jid jid, Jid bareId)
+    private void addParticipant(Jid jid, EntityFullJid occupantJid)
     {
         logger.info("Add Participant " + jid);
     }
