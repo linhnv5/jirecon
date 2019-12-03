@@ -94,4 +94,9 @@ public class ConfigurationKey
      */
     public final static String HTTP_PORT = PREFIX + ".HTTP_PORT";
 
+    /**
+     * Port of internal http service
+     */
+    public final static String HTTP_INTERNAL_PORT = PREFIX + ".HTTP_INTERNAL_PORT";
+
 }

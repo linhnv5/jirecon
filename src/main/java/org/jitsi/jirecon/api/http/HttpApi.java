@@ -14,18 +14,23 @@ import org.jitsi.jirecon.task.TaskManager;
 public class HttpApi {
 
 	/**
-	 * [startService] will start a new service using the given [StartServiceParams].
-	 * Returns a response with [Response.Status.OK] on success, [Response.Status.PRECONDITION_FAILED]
-	 * if this Jibri is already busy and [Response.Status.INTERNAL_SERVER_ERROR] on error
-	 * NOTE: start service is largely async, so a return of [Response.Status.OK] here just means Jibri
-	 * was able to *try* to start the request.  We don't have a way to get ongoing updates about services
-	 * via the HTTP API at this point.
+	 * Jirecon taskmanager, use to start, stop task, stop service
+	 */
+	private TaskManager taskManager;
+
+	public HttpApi(TaskManager taskManager) {
+		this.taskManager = taskManager;
+	}
+
+	/**
+	 * [startService] will start a new task service.
+	 * Returns a response with [Response.Status.OK] on success, [Response.Status.NO_CONTENT] if error
 	 */
 	@GET
-	@Path("startService/{room}")
+	@Path("start/{room}")
 	public Response startService(@PathParam(value = "room") String room)
 	{
-		if (TaskManager.gI().startJireconTask(room))
+		if (taskManager.startJireconTask(room))
 			return Response.ok().build();
 		return Response.noContent().build();
 	}
@@ -34,9 +39,9 @@ public class HttpApi {
 	 * [stopService] will stop the current service immediately
 	 */
 	@GET
-	@Path("stopService/{room}")
+	@Path("stop/{room}")
 	public Response stopService(@PathParam(value = "room") String room) {
-		if (TaskManager.gI().stopJireconTask(room, true))
+		if (taskManager.stopJireconTask(room, true))
 			return Response.ok().build();
 		return Response.noContent().build();
 	}

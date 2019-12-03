@@ -21,10 +21,14 @@
 package org.jitsi.jirecon;
 
 import org.jitsi.jirecon.api.http.HttpApi;
+import org.jitsi.jirecon.api.http.internal.InternalHttpApi;
 import org.jitsi.jirecon.task.TaskManager;
 import org.jitsi.jirecon.utils.ConfigurationKey;
 import org.jitsi.service.configuration.ConfigurationService;
 import org.jitsi.service.libjitsi.LibJitsi;
+
+import java.util.logging.Logger;
+
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -44,32 +48,27 @@ import org.glassfish.jersey.servlet.ServletContainer;
 public class Main
 {
 
+	private static Logger logger = Logger.getLogger(Main.class.getName());
+
 	/**
      * Prefix of configuration parameter.
      */
     private static final String CONF_ARG_NAME = "--conf=";
 
     /**
-     * Configuration file path.
-     */
-    private static String conf;
-
-    /**
      * Application entry.
      * 
-     * @param args <tt>JireconLauncher</tt> only cares about two arguments:
+     * @param args <tt>JireconLauncher</tt>:
      *            <p>
-     *            1. --conf=CONFIGURATION_FILE_PATH. Indicate the path of
+     *            --conf=CONFIGURATION_FILE_PATH. Indicate the path of
      *            configuration file.
      *            <p>
-     *            2. --time=RECORDING_SECONDS. Indicate how many seconds will
-     *            the recording task last. If you didn't specify this parameter,
-     *            Jirecon will continue recording forever unless all
-     *            participants has left the meeting.
+     * @throws Exception 
      */
     public static void main(String[] args)
+    		throws Exception
     {
-        conf = null;
+        String conf = null;
 
         for (String arg : args)
         {
@@ -80,16 +79,11 @@ public class Main
         if (conf == null)
             conf = "jirecon.properties";
 
-        TaskManager jirecon = TaskManager.gI();
-
-        LibJitsi.start();
-
-        System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_NAME, conf);
-        System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_IS_READ_ONLY, "true");
+        TaskManager jirecon = new TaskManager();
 
         try
         {
-            jirecon.init();
+            jirecon.init(conf);
         }
         catch (Exception e)
         {
@@ -97,13 +91,36 @@ public class Main
             return;
         }
 
-        ConfigurationService cfg = LibJitsi.getConfigurationService();
+    	ConfigurationService cfg = LibJitsi.getConfigurationService();
+
+    	int internalHttpPort = cfg.getInt(ConfigurationKey.HTTP_INTERNAL_PORT, 2333);
+    	logger.info("Using port "+internalHttpPort+" for internal HTTP API");
+
+    	// InternalHttpApi
+    	Runnable configChangedHandler = () -> {
+    		// Exit so we can be restarted and load the new config
+    		System.exit(0);
+    	};
+
+    	Runnable gracefulShutdownHandler = () -> {
+    		// Exit with code 255 to indicate we do not want process restart
+    		System.exit(255);
+    	};
+
+    	Runnable shutdownHandler = () -> {
+    		jirecon.uninit();
+
+    		logger.info("Service stopped");
+    		System.exit(255);
+    	};
+
+    	launchHttpServer(internalHttpPort, new InternalHttpApi(configChangedHandler, gracefulShutdownHandler, shutdownHandler));
 
     	int httpApiPort = cfg.getInt(ConfigurationKey.HTTP_PORT, 2323);
-    	System.out.println("Using port "+httpApiPort+" for the HTTP API");
+    	logger.info("Using port "+httpApiPort+" for the HTTP API");
 
     	try {
-			launchHttpServer(httpApiPort, new HttpApi());
+			launchHttpServer(httpApiPort, new HttpApi(jirecon));
 		} catch (Exception e) {
 		}
     }

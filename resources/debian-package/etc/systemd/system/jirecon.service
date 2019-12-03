@@ -1,0 +1,15 @@
+[Unit]
+Description=Jirecon Process
+After=network.target
+
+[Service]
+PermissionsStartOnly=true
+ExecStart=/opt/jitsi/jirecon/launch.sh
+ExecStop=/opt/jitsi/jirecon/graceful_shutdown.sh
+ExecReload=/opt/jitsi/jirecon/reload.sh
+Restart=always
+RestartPreventExitStatus=255
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

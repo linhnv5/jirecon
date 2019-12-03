@@ -70,18 +70,6 @@ public final class TaskManager implements TaskEventListener
      */
     private boolean isInitialized = false;
 
-    /* */
-    private TaskManager() {
-    }
-
-    private static class TaskManagerInstanceHelper {
-        private static TaskManager instance = new TaskManager();
-    }
-
-    public static TaskManager gI() {
-    	return TaskManagerInstanceHelper.instance;
-    }
-
     /**
      * Initialize <tt>Jirecon</tt>.
      * <p>
@@ -95,7 +83,7 @@ public final class TaskManager implements TaskEventListener
      * @throws Exception if failed to initialize Jirecon.
      * 
      */
-    public synchronized void init()
+    public synchronized void init(String configurationPath)
         throws Exception
     {
         logger.info("Initialize.");
@@ -105,6 +93,11 @@ public final class TaskManager implements TaskEventListener
             logger.log(Level.WARNING, "Already initialized: ", new Throwable());
             return;
         }
+
+        LibJitsi.start();
+
+        System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_NAME, configurationPath);
+        System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_IS_READ_ONLY, "true");
 
         ConfigurationService cfg = LibJitsi.getConfigurationService();
 

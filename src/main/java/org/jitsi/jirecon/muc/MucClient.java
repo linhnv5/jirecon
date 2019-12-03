@@ -38,9 +38,9 @@ import org.jitsi.xmpp.extensions.jingle.DtlsFingerprintPacketExtension;
 import org.jitsi.xmpp.extensions.jingle.IceUdpTransportPacketExtension;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.CreatorEnum;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.SendersEnum;
-import org.jitsi.xmpp.extensions.jirecon.*;
 import org.jitsi.xmpp.extensions.jitsimeet.MediaPresenceExtension.Source;
 import org.jitsi.xmpp.extensions.jitsimeet.SSRCInfoPacketExtension;
+import org.jitsi.xmpp.extensions.jitsimeet.UserInfoPacketExt;
 import org.jitsi.xmpp.extensions.jingle.JingleIQ;
 import org.jitsi.xmpp.extensions.jingle.JinglePacketFactory;
 import org.jitsi.xmpp.extensions.jingle.JingleUtils;
@@ -211,7 +211,10 @@ public final class MucClient implements TaskEventListener
         Stanza presence = new Presence(Presence.Type.available);
         presence.setTo(muc.getRoom());
         presence.addExtension(new Nick(NICKNAME));
-        presence.addExtension(new RecorderExtension(null));
+        UserInfoPacketExt userInfoPacketExt = new UserInfoPacketExt();
+        userInfoPacketExt.setIsRobot(true);
+        presence.addExtension(userInfoPacketExt);
+//        presence.addExtension(new RecorderExtension(null));
         connection.sendStanza(presence);
 
         this.localFullJid = JidCreate.from(mucJid + "/" + finalNickname);
@@ -759,17 +762,17 @@ public final class MucClient implements TaskEventListener
      */
     private void sendRecordingOnPresence()
     {
-    	Stanza presence = new Presence(Presence.Type.available);
-        presence.setTo(muc.getRoom());
-        presence.addExtension(new Nick(NICKNAME));
-        presence.addExtension(new RecorderExtension("true"));
-        try {
-			connection.sendStanza(presence);
-		} catch (NotConnectedException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+//    	Stanza presence = new Presence(Presence.Type.available);
+//        presence.setTo(muc.getRoom());
+//        presence.addExtension(new Nick(NICKNAME));
+//        presence.addExtension(new RecorderExtension("true"));
+//        try {
+//			connection.sendStanza(presence);
+//		} catch (NotConnectedException e) {
+//			e.printStackTrace();
+//		} catch (InterruptedException e) {
+//			e.printStackTrace();
+//		}
     }
 
     /**
@@ -779,17 +782,17 @@ public final class MucClient implements TaskEventListener
      */
     private void sendRecordingOffPresence()
     {
-    	Stanza presence = new Presence(Presence.Type.available);
-        presence.setTo(muc.getRoom());
-        presence.addExtension(new Nick(NICKNAME));
-        presence.addExtension(new RecorderExtension("false"));
-        try {
-			connection.sendStanza(presence);
-		} catch (NotConnectedException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+//    	Stanza presence = new Presence(Presence.Type.available);
+//        presence.setTo(muc.getRoom());
+//        presence.addExtension(new Nick(NICKNAME));
+//        presence.addExtension(new RecorderExtension("false"));
+//        try {
+//			connection.sendStanza(presence);
+//		} catch (NotConnectedException e) {
+//			e.printStackTrace();
+//		} catch (InterruptedException e) {
+//			e.printStackTrace();
+//		}
     }
 
     /**
