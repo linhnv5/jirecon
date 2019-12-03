@@ -10,7 +10,7 @@ import org.jitsi.jirecon.task.TaskManager;
 /**
  * The [HttpApi] is for starting and stopping the various Jirecon services
  */
-@Path("/jirecon/api/v1.0")
+@Path("/jirecon")
 public class HttpApi {
 
 	/**
