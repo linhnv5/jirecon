@@ -737,9 +737,8 @@ public class RecorderRtpImpl
 					return;
 				}
 
-			} else {
+			} else
 				dataSink = new WebmDataSink(filename, desc.dataSource);
-			}
 
 			if (logger.isInfoEnabled())
 				logger.info("Created DataSink (" + dataSink + ") for SSRC=" + ssrc + ". Output filename: " + filename);

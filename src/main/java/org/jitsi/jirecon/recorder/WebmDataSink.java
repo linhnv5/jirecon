@@ -48,7 +48,7 @@ public class WebmDataSink implements DataSink, BufferTransferHandler {
 	/**
 	 * The <tt>WebmWriter</tt> which we use to write the frames to a file.
 	 */
-	private WebmWriterFFmpeg writer = null;
+	private WebmWriter writer = null;
 
 	private RecorderEventHandler eventHandler;
 	private long ssrc = -1;
@@ -243,7 +243,7 @@ public class WebmDataSink implements DataSink, BufferTransferHandler {
 	 */
 	@Override
 	public void start() throws IOException {
-		writer = new WebmWriterFFmpeg(filename);
+		writer = new WebmWriter(filename);
 		dataSource.start();
 		if (logger.isInfoEnabled())
 			logger.info("Created WebmWriter on " + filename);
