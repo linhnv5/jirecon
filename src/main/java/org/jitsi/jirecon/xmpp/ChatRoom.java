@@ -23,31 +23,12 @@ import java.util.*;
 
 import net.java.sip.communicator.util.*;
 
-import org.jitsi.impl.neomedia.format.MediaFormatFactoryImpl;
 import org.jitsi.jirecon.task.TaskEvent;
 import org.jitsi.jirecon.task.TaskEvent.TaskEventListener;
-import org.jitsi.jirecon.xmpp.XmppEvent.MucEventListener;
-import org.jitsi.service.libjitsi.*;
-import org.jitsi.service.neomedia.*;
-import org.jitsi.service.neomedia.format.*;
-import org.jitsi.utils.MediaType;
-import org.jitsi.xmpp.extensions.AbstractPacketExtension;
-import org.jitsi.xmpp.extensions.colibri.SourcePacketExtension;
 import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension;
-import org.jitsi.xmpp.extensions.jingle.DtlsFingerprintPacketExtension;
-import org.jitsi.xmpp.extensions.jingle.IceUdpTransportPacketExtension;
-import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.CreatorEnum;
-import org.jitsi.xmpp.extensions.jingle.ContentPacketExtension.SendersEnum;
-import org.jitsi.xmpp.extensions.jitsimeet.MediaPresenceExtension.Source;
-import org.jitsi.xmpp.extensions.jitsimeet.SSRCInfoPacketExtension;
+import org.jitsi.xmpp.extensions.jitsimeet.UserInfoPacketExt;
 import org.jitsi.xmpp.extensions.jingle.JingleIQ;
-import org.jitsi.xmpp.extensions.jingle.JinglePacketFactory;
-import org.jitsi.xmpp.extensions.jingle.JingleUtils;
-import org.jitsi.xmpp.extensions.jingle.ParameterPacketExtension;
-import org.jitsi.xmpp.extensions.jingle.PayloadTypePacketExtension;
 import org.jitsi.xmpp.extensions.jingle.Reason;
-import org.jitsi.xmpp.extensions.jingle.RtpDescriptionPacketExtension;
-import org.jitsi.xmpp.extensions.jingle.SctpMapExtension;
 import org.jivesoftware.smack.*;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
@@ -65,10 +46,9 @@ import org.jxmpp.jid.parts.Localpart;
 import org.jxmpp.jid.parts.Resourcepart;
 
 /**
- * Manage Jingle session, join MUC, build Jingle session etc.
+ * Define chatroom struct
  * 
- * @author lishunyang
- * @author Boris Grozev
+ * @author ljnk975
  * 
  */
 public final class ChatRoom implements TaskEventListener
@@ -77,8 +57,8 @@ public final class ChatRoom implements TaskEventListener
 	/**
      * The <tt>Logger</tt>, used to log messages to standard output.
      */
-    private static final Logger logger = Logger.getLogger(ChatRoom.class.getName());
-    
+    private static final Logger logger = Logger.getLogger(ChatRoom.class);
+
     /**
      * Maximum wait time in milliseconds.
      */
@@ -93,13 +73,7 @@ public final class ChatRoom implements TaskEventListener
     /**
      * The <tt>XMPPConnection</tt> is used to send/receive XMPP packets.
      */
-    private XMPPConnection connection;
-
-    /**
-     * The <tt>JireconTaskEventListener</tt>, if <tt>JireconRecorder</tt> has
-     * something important, it will notify them.
-     */
-    private final List<MucEventListener> listeners = new ArrayList<MucEventListener>();
+    XMPPConnection connection;
 
     /**
      * The instance of a <tt>MultiUserChat</tt>. <tt>JireconSessionImpl</tt>
@@ -108,41 +82,35 @@ public final class ChatRoom implements TaskEventListener
     private MultiUserChat muc;
 
     /**
-     * Local node's full-jid which is used for creating <tt>JingleIQ</tt>.
+     * This room localpart
      */
-    private Jid localFullJid;
-
-    /**
-     * Remote node's full-jid which is used for creating <tt>JingleIQ</tt>.
-     */
-    private Jid remoteFullJid;
-
-    /**
-     * Jingle session id which is used for making <tt>JingleIq</tt>.
-     */
-    private String sid;
+    Localpart localpart;
 
     /**
      * <tt>Endpoint</tt>s in the meeting.
      */
-    private final Map<Jid, Endpoint> endpoints = new HashMap<Jid, Endpoint>();
+    final Map<Jid, Endpoint> endpoints = new HashMap<Jid, Endpoint>();
 
     /**
      * Packet listening for precence packet handle
      */
     private StanzaListener receivingListener;
-    
+
+    /**
+     * Jingle session
+     */
+    private JingleSession jingleSession;
+
     /**
      * Initialize <tt>JireconSession</tt>.
      * 
      * @param connection is used for send/receive XMPP packet.
      * @throws Exception  if failed to join MUC.
      */
-    ChatRoom(XMPPConnection connection, String mucJid, String nickname)
+    ChatRoom(XMPPConnection connection)
     		throws Exception
     {
         this.connection = connection;
-        this.joinMUC(mucJid, nickname);
     }
 
     /**
@@ -152,7 +120,7 @@ public final class ChatRoom implements TaskEventListener
      * @param nickname The name in MUC.
      * @throws Exception if failed to join MUC.
      */
-    private void joinMUC(String mucJid, String nickname)
+    void joinMUC(String mucJid, String nickname)
         throws Exception
     {
         logger.info("Joining MUC...");
@@ -161,29 +129,10 @@ public final class ChatRoom implements TaskEventListener
         MultiUserChatManager mucManager = MultiUserChatManager.getInstanceFor(connection);
 
         // Room id
-        final EntityBareJid room = JidCreate.entityBareFrom(mucJid);
+        EntityBareJid room = JidCreate.entityBareFrom(mucJid);
 
-        /*
-         * Register the receiving packet listener to handle presence packet.
-         */
-        receivingListener = new StanzaListener()
-        {
-            @Override
-            public void processStanza(Stanza packet)
-            {
-                if (packet instanceof Presence)
-                	handlePresencePacket((Presence) packet);
-            }
-        };
-        connection.addSyncStanzaListener(receivingListener, new StanzaFilter()
-        {
-            @Override
-            public boolean accept(Stanza packet)
-            {
-            	Localpart localpart;
-            	return (localpart = packet.getFrom().getLocalpartOrNull()) != null && localpart.equals(room.getLocalpartOrNull());
-            }
-        });
+        // Localpart
+        localpart = room.getLocalpart();
 
         //
         muc = mucManager.getMultiUserChat(room);
@@ -211,11 +160,36 @@ public final class ChatRoom implements TaskEventListener
         Presence presence = new Presence(Presence.Type.available);
         presence.setTo(muc.getRoom());
         presence.addExtension(new Nick(NICKNAME));
-//        presence.addExtension(new RecorderExtension(null));
+        presence.addExtension(new UserInfoPacketExt());
         connection.sendStanza(presence);
 
-        this.localFullJid = JidCreate.from(mucJid + "/" + finalNickname);
-        logger.info("Joined MUC as "+localFullJid);
+        /*
+         * Set jingle session
+         */
+        this.jingleSession = new JingleSession(this);
+
+        /*
+         * Register the receiving packet listener to handle presence packet.
+         */
+        receivingListener = new StanzaListener()
+        {
+            @Override
+            public void processStanza(Stanza packet)
+            {
+                if (packet instanceof Presence)
+                	handlePresencePacket((Presence) packet);
+            }
+        };
+        connection.addSyncStanzaListener(receivingListener, new StanzaFilter()
+        {
+            @Override
+            public boolean accept(Stanza packet)
+            {
+            	return localpart.equals(packet.getFrom().getLocalpartOrNull());
+            }
+        });
+
+        logger.info("Joined MUC as "+mucJid+"/"+finalNickname);
     }
 
     /**
@@ -246,77 +220,45 @@ public final class ChatRoom implements TaskEventListener
     public void disconnect(Reason reason, String reasonText)
     {
     	try {
-			sendByePacket(reason, reasonText);
+			jingleSession.sendByePacket(reason, reasonText);
 		} catch (Exception e) {
 		}
+        jingleSession.free();
         leaveMUC();
     }
 
-    /**
-     * Send Jingle session-accept packet to the remote peer.
-     * 
-     * @param formatAndPTs Map between <tt>MediaFormat</tt> and payload type id.
-     * @param localSsrcs Local sscrs of audio and video.
-     * @param transportPEs DtlsTransport packet extensions.
-     * @param fingerprintPEs Fingerprint packet extensions.
-     * @throws InterruptedException 
-     * @throws NotConnectedException 
-     */
-    public void sendAcceptPacket(
-        Map<MediaType, Map<MediaFormat, Byte>> formatAndPTs,
-        Map<MediaType, Long> localSsrcs,
-        Map<MediaType, AbstractPacketExtension> transportPEs,
-        Map<MediaType, AbstractPacketExtension> fingerprintPEs) throws NotConnectedException, InterruptedException
-    {
-        logger.debug("sendAcceptPacket");
-        
-        connection.sendStanza(createAcceptPacket(formatAndPTs, localSsrcs, transportPEs, fingerprintPEs));
-    }
-
-    /**
-     * Send Jingle session-terminate packet.
-     * 
-     * @param reason is the <tt>Reason</tt> type of the termination packet.
-     * @param reasonText is the human-read text.
-     * @throws InterruptedException 
-     * @throws NotConnectedException 
-     */
-    private void sendByePacket(Reason reason, String reasonText) throws NotConnectedException, InterruptedException
-    {
-        logger.debug("sendByePacket");
-
-        connection.sendStanza(JinglePacketFactory.createSessionTerminate(localFullJid, remoteFullJid, sid, reason, reasonText));
-    }
-
-    private JingleIQ initIQ;
+    private JingleIQ initIQ = null;
     private Object waitForInitPacketSyncRoot = new Object();
-
+    
+    /**
+     * Handle iq packet
+     * @param iqRequest the iq packet request
+     * @return result iq packet
+     */
 	public IQ handleIQRequest(IQ iqRequest) {
+		List<ContentPacketExtension> listContent;
+
 		if (iqRequest instanceof JingleIQ) {
 			JingleIQ iq = (JingleIQ)iqRequest;
 
-			List<ContentPacketExtension> listContent;
+			System.out.println("Action="+iq.getAction());
 			switch (iq.getAction()) {
 				case SESSION_INITIATE:
-					initJingleSession(initIQ = iq);
-					synchronized (waitForInitPacketSyncRoot)
-					{
-						waitForInitPacketSyncRoot.notify();
-					}
+					this.initIQ = iq;
 					break;
 				case ADDSOURCE:
 				case SOURCEADD:
 			        listContent = iq.getContentList();
 			        for (ContentPacketExtension content : listContent)
-			        	this.addSource(content);
-		            fireEvent(new XmppEvent(XmppEvent.Type.SOURCE_ADD));
+			        	jingleSession.addSource(content);
+			        jingleSession.recorderMgr.updateSynchronizers();
 					break;
 				case REMOVESOURCE:
 				case SOURCEREMOVE:
 			        listContent = iq.getContentList();
 			        for (ContentPacketExtension content : listContent)
-			        	this.removeSource(content);
-		            fireEvent(new XmppEvent(XmppEvent.Type.SOURCE_REMOVE));
+			        	jingleSession.removeSource(content);
+			        jingleSession.recorderMgr.updateSynchronizers();
 					break;
 				default:
 					break;
@@ -343,7 +285,7 @@ public final class ChatRoom implements TaskEventListener
     {
         logger.info("waitForInitPacket");
 
-        if (this.initIQ == null) {
+        if (!jingleSession.isSessionInit) {
             boolean interrupted = false;
 
             synchronized (waitForInitPacketSyncRoot)
@@ -366,145 +308,11 @@ public final class ChatRoom implements TaskEventListener
 
             if (this.initIQ == null)
                 throw new Exception("Could not get session-init packet, maybe the MUC has locked.");
+
+    		jingleSession.initJingleSession(initIQ);
         }
-        
+
         return this.initIQ;
-    }
-
-    private List<MediaType> supportedMediaTypes;
-    private Map<MediaType, Map<MediaFormat, Byte>> formatAndPTs;
-    private Map<MediaType, DtlsFingerprintPacketExtension> fingerprints;
-    private Map<MediaType, IceUdpTransportPacketExtension> iceTransports;
-
-    /**
-	 * @return the supportedMediaTypes
-	 */
-	public List<MediaType> getSupportedMediaTypes() {
-		return supportedMediaTypes;
-	}
-
-	/**
-	 * @return the formatAndPTs
-	 */
-	public Map<MediaType, Map<MediaFormat, Byte>> getFormatAndPTs() {
-		return formatAndPTs;
-	}
-
-	/**
-	 * @return the fingerprints
-	 */
-	public Map<MediaType, DtlsFingerprintPacketExtension> getFingerprints() {
-		return fingerprints;
-	}
-
-	/**
-	 * @return the iceTransports
-	 */
-	public Map<MediaType, IceUdpTransportPacketExtension> getIceTransports() {
-		return iceTransports;
-	}
-
-	/**
-	 * Add source to endpoint
-	 * @param content
-	 */
-	private void addSource(ContentPacketExtension content) {
-    	MediaType mediaType = JingleUtils.getMediaType(content);
-        RtpDescriptionPacketExtension rtpDescriptionPacketExtension = JingleUtils.getRtpDescription(content);
-    	if (rtpDescriptionPacketExtension != null) {
-            //
-            List<Source> sources = rtpDescriptionPacketExtension.getChildExtensionsOfType(Source.class);
-            for (Source source : sources)
-            {
-            	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
-            	if (ssrcInfo != null && !ssrcInfo.getOwner().toString().equals("jvb")) {
-            		System.out.println("Add Source: "+source.getSSRC()+" id="+ssrcInfo.getOwner());
-            		Endpoint endpoint = getEndpoint(ssrcInfo.getOwner().asEntityFullJidIfPossible());
-            		if (endpoint != null)
-            			endpoint.addSsrc(mediaType, Long.valueOf(source.getSSRC()));
-            	}
-            }
-    	}
-	}
-
-	/**
-	 * Remove source to endpoint
-	 * @param content
-	 */
-	private void removeSource(ContentPacketExtension content) {
-    	MediaType mediaType = JingleUtils.getMediaType(content);
-        RtpDescriptionPacketExtension rtpDescriptionPacketExtension = JingleUtils.getRtpDescription(content);
-    	if (rtpDescriptionPacketExtension != null) {
-            //
-            List<Source> sources = rtpDescriptionPacketExtension.getChildExtensionsOfType(Source.class);
-            for (Source source : sources)
-            {
-            	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
-            	if (ssrcInfo != null) {
-            		System.out.println("Remove Source: "+source.getSSRC()+" id="+ssrcInfo.getOwner());
-            		Endpoint endpoint = getEndpoint(ssrcInfo.getOwner().asEntityFullJidIfPossible());
-            		if (endpoint != null)
-            		{
-                		endpoint.removeSsrc(mediaType, Long.valueOf(source.getSSRC()));
-                		if (endpoint.isEmpty())
-                			removeEndpoint(endpoint.getId());
-            		}
-            	}
-            }
-    	}
-	}
-
-	/**
-	 * Init jvb session
-	 * @param initIq
-	 */
-    private void initJingleSession(JingleIQ initIq) {
-        sid = initIq.getSID();
-        localFullJid  = initIq.getTo();
-        remoteFullJid = initIq.getFrom();
-
-        // 
-        List<ContentPacketExtension> listContent = initIq.getContentList();
-
-        // Init session
-        this.supportedMediaTypes = new ArrayList<MediaType>();
-
-        this.formatAndPTs  = new HashMap<MediaType, Map<MediaFormat, Byte>>();
-        this.fingerprints  = new HashMap<MediaType, DtlsFingerprintPacketExtension>();
-        this.iceTransports = new HashMap<MediaType, IceUdpTransportPacketExtension>();
-
-        MediaFormatFactoryImpl fmtFactory = new MediaFormatFactoryImpl();
-        for (ContentPacketExtension contentPacketExtension : listContent) {
-        	MediaType mediaType = JingleUtils.getMediaType(contentPacketExtension);
-
-        	RtpDescriptionPacketExtension rtpDescriptionPacketExtension = JingleUtils.getRtpDescription(contentPacketExtension);
-        	Map<MediaFormat, Byte> mapMediaFormat = null;
-        	if (rtpDescriptionPacketExtension != null) {
-        		mapMediaFormat = new HashMap<MediaFormat, Byte>();
-                for (PayloadTypePacketExtension payloadTypePacketExt : rtpDescriptionPacketExtension.getPayloadTypes())
-                {
-                    MediaFormat format = fmtFactory.createMediaFormat(
-                    		payloadTypePacketExt.getName(),
-                            payloadTypePacketExt.getClockrate(),
-                            payloadTypePacketExt.getChannels()
-                    );
-                    if (format != null)
-                    	mapMediaFormat.put(format, (byte) (payloadTypePacketExt.getID()));
-                }
-        	}
-            formatAndPTs.put(mediaType, mapMediaFormat);
-
-            // Add source
-            addSource(contentPacketExtension);
-
-            //
-            IceUdpTransportPacketExtension iceUdpTransportPacketExtension = contentPacketExtension.getFirstChildOfType(IceUdpTransportPacketExtension.class);
-            
-            iceTransports.put(mediaType, iceUdpTransportPacketExtension);
-            fingerprints.put(mediaType, iceUdpTransportPacketExtension.getFirstChildOfType(DtlsFingerprintPacketExtension.class));
-
-        	this.supportedMediaTypes.add(mediaType);
-        }
     }
 
     /**
@@ -533,213 +341,16 @@ public final class ChatRoom implements TaskEventListener
         // Oh, it seems that some participant has left the MUC.
         if (p.getType() == Presence.Type.unavailable)
         {
+        	System.out.println(participantJid+" leave!");
         	removeParticipant(participantJid);
-            fireEvent(new XmppEvent(XmppEvent.Type.PARTICIPANT_LEFT));
         }
         else
         {
+        	System.out.println(participantJid+" came!");
         	addParticipant(participantJid, p.getFrom().asEntityFullJidIfPossible());
-            fireEvent(new XmppEvent(XmppEvent.Type.PARTICIPANT_CAME));
-        }
-    }
-    
-    /**
-     * Create Jingle session-accept packet.
-     * 
-     * @return Jingle session-accept packet.
-     */
-    @SuppressWarnings("deprecation")
-	private JingleIQ createAcceptPacket(
-        Map<MediaType, Map<MediaFormat, Byte>> formatAndPTs,
-        Map<MediaType, Long> localSsrcs,
-        Map<MediaType, AbstractPacketExtension> transportPEs,
-        Map<MediaType, AbstractPacketExtension> fingerprintPEs)
-    {
-        logger.debug("createSessionAcceptPacket");
-        
-        List<ContentPacketExtension> contentPEs = new ArrayList<ContentPacketExtension>();
-
-        for (MediaType mediaType : MediaType.values())
-        {
-            if (!transportPEs.containsKey(mediaType) || !fingerprintPEs.containsKey(mediaType))
-                continue;
-            
-            /* The packet extension that we will create :) */
-            RtpDescriptionPacketExtension descriptionPE = null;
-            AbstractPacketExtension transportPE = null;
-            AbstractPacketExtension fingerprintPE = null;
-            ContentPacketExtension contentPE = null;
-            SctpMapExtension sctpMapPE = null;
-
-            /*
-             * 1. Create DescriptionPE. Only audio and video need this one.
-             */
-            if (mediaType == MediaType.VIDEO || mediaType == MediaType.AUDIO) 
-                descriptionPE = createDescriptionPacketExt(mediaType, formatAndPTs.get(mediaType), localSsrcs.get(mediaType));
-            
-            /* 
-             * 2. Create TransportPE with FingerprintPE. 
-             */
-            transportPE   = transportPEs.get(mediaType);
-            fingerprintPE = fingerprintPEs.get(mediaType);
-            transportPE.addChildExtension(fingerprintPE);
-            
-            /* 
-             * 3. Create sctpMapPE. Only data need this one. 
-             */
-            if (mediaType == MediaType.DATA)
-            {
-                /*
-                 * Actually the port could be any number, but let's keep it 5000
-                 * everywhere.
-                 */
-                final int port = 5000;
-
-                /*
-                 * Jirecon didn't care about this at this moment. So just set it 1024. 
-                 */
-                final int numStreams = 1024;
-                
-                sctpMapPE = new SctpMapExtension();
-                sctpMapPE.setPort(port);
-                sctpMapPE.setProtocol(SctpMapExtension.Protocol.WEBRTC_CHANNEL);
-                sctpMapPE.setStreams(numStreams);
-                transportPE.addChildExtension(sctpMapPE);
-            }
-
-            /*
-             * 4. Create Content packet extension with DescriptionPE(it could be
-             * null) and TransportPE above.
-             */
-            contentPE = createContentPacketExtension(mediaType.toString(), descriptionPE, transportPE);
-
-            contentPEs.add(contentPE);
-        }
-
-        JingleIQ acceptJiq = JinglePacketFactory.createSessionAccept(localFullJid, remoteFullJid, sid, contentPEs);
-        acceptJiq.setInitiator(remoteFullJid);
-        return acceptJiq;
-    }
-    
-    /**
-     * Create content packet extension in Jingle session-accept packet.
-     * 
-     * @return content packet extension.
-     */
-    private ContentPacketExtension createContentPacketExtension(
-        String name,
-        RtpDescriptionPacketExtension descriptionPE,
-        AbstractPacketExtension transportPE)
-    {
-        logger.debug(this.getClass() + " createContentPacketExtension");
-        
-        ContentPacketExtension content = new ContentPacketExtension();
-        content.setCreator(CreatorEnum.responder);
-        content.setName(name);
-        content.setSenders(SendersEnum.initiator);
-        if (null != descriptionPE)
-            content.addChildExtension(descriptionPE);
-        content.addChildExtension(transportPE);
-
-        return content;
-    }
-
-    /**
-     * Create <tt>RtpDescriptionPacketExtension</tt> with specified mediatype,
-     * media formats, payload type ids and ssrcs.
-     * 
-     * @param mediaType
-     * @param formatAndPayloadTypes
-     * @param localSsrc
-     * @return
-     */
-    private RtpDescriptionPacketExtension createDescriptionPacketExt(
-        MediaType mediaType, Map<MediaFormat, Byte> formatAndPayloadTypes,
-        Long localSsrc)
-    {
-        RtpDescriptionPacketExtension description = new RtpDescriptionPacketExtension();
-        
-        /*
-         *  1. Set media type.
-         */
-        description.setMedia(mediaType.toString());
-
-        /*
-         *  2. Set local ssrc.
-         */
-        description.setSsrc(localSsrc.toString());
-
-        /*
-         *  3. Set payload type id.
-         */
-        for (Map.Entry<MediaFormat, Byte> e : formatAndPayloadTypes.entrySet())
-        {
-            PayloadTypePacketExtension payloadType = new PayloadTypePacketExtension();
-            payloadType.setId(e.getValue());
-            payloadType.setName(e.getKey().getEncoding());
-            if (e.getKey() instanceof AudioMediaFormat)
-                payloadType.setChannels(((AudioMediaFormat) e.getKey()).getChannels());
-            payloadType.setClockrate((int) e.getKey().getClockRate());
-            for (Map.Entry<String, String> en : e.getKey().getFormatParameters().entrySet())
-            {
-                ParameterPacketExtension parameter = new ParameterPacketExtension();
-                parameter.setName(en.getKey());
-                parameter.setValue(en.getValue());
-                payloadType.addParameter(parameter);
-            }
-            description.addPayloadType(payloadType);
-        }
-
-        final MediaService mediaService = LibJitsi.getMediaService();
-        
-        /*
-         *  4. Set source information.
-         */
-        SourcePacketExtension sourcePacketExtension = new SourcePacketExtension();
-        final String label = UUID.randomUUID().toString().replace("-", "");
-        final String msLabel = UUID.randomUUID().toString();
-        
-        sourcePacketExtension.setSSRC(localSsrc);
-        sourcePacketExtension.addChildExtension(new ParameterPacketExtension("cname", mediaService.getRtpCname()));
-        sourcePacketExtension.addChildExtension(new ParameterPacketExtension("msid", msLabel + " " + label));
-        sourcePacketExtension.addChildExtension(new ParameterPacketExtension("mslabel", msLabel));
-        sourcePacketExtension.addChildExtension(new ParameterPacketExtension("label", label));
-        description.addChildExtension(sourcePacketExtension);
-        
-        return description;
-    }
-    
-    public void addMucEventListener(MucEventListener listener)
-    {
-        synchronized (listeners)
-        {
-            listeners.add(listener);
         }
     }
 
-    public void removeTaskEventListener(MucEventListener listener)
-    {
-        synchronized (listeners)
-        {
-            listeners.remove(listener);
-        }
-    }
-    
-    /**
-     * Fire a <tt>TaskEvent</tt>, notify listeners we've made new
-     * progress which they may interest in.
-     * 
-     * @param event
-     */
-    private void fireEvent(XmppEvent event)
-    {
-        synchronized (listeners)
-        {
-            for (MucEventListener l : listeners)
-                l.handleMucEvent(event);
-        }
-    }
-    
     /**
      * Handles events coming from the {@link org.jitsi.jirecon.task.Task} which owns
      * us.
@@ -807,6 +418,16 @@ public final class ChatRoom implements TaskEventListener
         }
     }
 
+    private void addParticipant(Jid jid, EntityFullJid occupantJid)
+    {
+        logger.info("Add Participant " + jid);
+    }
+
+    private void removeParticipant(Jid jid)
+    {
+        logger.info("Remove Participant " + jid);
+    }
+
     /**
      * Get an endpoint with the given JID specified endpoint. <br/>
      * If endpoint not exists then create endpoint and return
@@ -814,7 +435,7 @@ public final class ChatRoom implements TaskEventListener
      * @param jid Indicate which endpoint to remove.
      * @return endpoint
      */
-    private Endpoint getEndpoint(EntityFullJid jid)
+    Endpoint getEndpoint(EntityFullJid jid)
     {
         synchronized (endpoints)
         {
@@ -833,7 +454,7 @@ public final class ChatRoom implements TaskEventListener
      * 
      * @param jid Indicate which endpoint to remove.
      */
-    private void removeEndpoint(EntityFullJid jid)
+    void removeEndpoint(EntityFullJid jid)
     {
         logger.info("Remove Endpoint " + jid);
         
@@ -843,14 +464,12 @@ public final class ChatRoom implements TaskEventListener
         }
     }
 
-    private void addParticipant(Jid jid, EntityFullJid occupantJid)
+    /**
+     * Start recording
+     */
+    public void startRecording(String outputDir)
     {
-        logger.info("Add Participant " + jid);
-    }
-
-    private void removeParticipant(Jid jid)
-    {
-        logger.info("Remove Participant " + jid);
+    	jingleSession.startRecording(outputDir);
     }
 
 }

@@ -1,16 +1,17 @@
 package org.jitsi.jirecon.api.http.internal;
 
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.core.Response;
 
+import net.java.sip.communicator.util.Logger;
+
 @Path("/jirecon/internal")
 public class InternalHttpApi {
 
-    private Logger logger = Logger.getLogger(InternalHttpApi.class.getName());
+    private Logger logger = Logger.getLogger(InternalHttpApi.class);
 
     private Runnable configChangedHandler;
     private Runnable gracefulShutdownHandler;

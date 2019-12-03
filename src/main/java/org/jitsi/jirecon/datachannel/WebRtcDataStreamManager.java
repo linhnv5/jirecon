@@ -24,8 +24,6 @@ import java.net.*;
 import java.nio.*;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.media.rtp.*;
 import org.jitsi.impl.neomedia.*;
@@ -34,6 +32,8 @@ import org.jitsi.sctp4j.*;
 import org.jitsi.service.neomedia.*;
 import org.jitsi.utils.MediaType;
 import org.jitsi.utils.concurrent.ExecutorUtils;
+
+import net.java.sip.communicator.util.Logger;
 
 /**
  * Manage all <tt>WebRtcDataStream</tt>s in one SCTP sonnection.
@@ -48,7 +48,7 @@ import org.jitsi.utils.concurrent.ExecutorUtils;
 public class WebRtcDataStreamManager
 {
 
-	private static final Logger logger = Logger.getLogger(WebRtcDataStreamManager.class.getName());
+	private static final Logger logger = Logger.getLogger(WebRtcDataStreamManager.class);
     
     /**
      * Message type used to acknowledge WebRTC data channel allocation on SCTP
@@ -152,14 +152,14 @@ public class WebRtcDataStreamManager
                     }
                     catch (Exception e)
                     {
-                        logger.log(Level.SEVERE, "Error accepting SCTP connection", e);
+                        logger.error("Error accepting SCTP connection", e);
                     }
                 }
             });
         }
         catch (Exception e)
         {
-            logger.log(Level.SEVERE, "Failed to start WebRtcDataStreamManager", e);
+            logger.error("Failed to start WebRtcDataStreamManager", e);
         }
     }
 
@@ -182,7 +182,7 @@ public class WebRtcDataStreamManager
         }
         catch (Exception e)
         {
-            logger.log(Level.SEVERE, "Failed to start WebRtcDataStreamManager", e);
+            logger.error("Failed to start WebRtcDataStreamManager", e);
         }
     }
 
@@ -198,7 +198,7 @@ public class WebRtcDataStreamManager
         }
         catch (IOException e)
         {
-            logger.log(Level.SEVERE, "Failed to stop sctp socket", e);
+            logger.error("Failed to stop sctp socket", e);
         }
     }
     
@@ -228,7 +228,7 @@ public class WebRtcDataStreamManager
         channel = channels.get(sid);
         if (null == channel)
         {
-            logger.log(Level.SEVERE, "No channel found for sid: " + sid);
+            logger.error("No channel found for sid: " + sid);
         }
 
         return channel;
@@ -253,7 +253,7 @@ public class WebRtcDataStreamManager
     {
         if (null != sctpSocket)
         {
-            logger.log(Level.WARNING, "Sctp stuff has already been started.");
+            logger.warn("Sctp stuff has already been started.");
             return;
         }
 
@@ -310,26 +310,21 @@ public class WebRtcDataStreamManager
 
         if (messageType == MSG_CHANNEL_ACK)
         {
-        	logger.fine("ACK received SID: " + sid);
-            // Open channel ACK
+        	logger.debug("ACK received SID: " + sid);
+
+        	// Open channel ACK
             WebRtcDataStream channel = channels.get(sid);
             if (channel != null)
             {
                 // Ack check prevents from firing multiple notifications
                 // if we get more than one ACKs (by mistake/bug).
                 if (!channel.isAcknowledged())
-                {
                     channel.ackReceived();
-                }
                 else
-                {
-                    logger.log(Level.WARNING, "Redundant ACK received for SID: " + sid);
-                }
+                    logger.warn("Redundant ACK received for SID: " + sid);
             }
             else
-            {
-                logger.log(Level.SEVERE, "No channel exists on sid: " + sid);
-            }
+                logger.error("No channel exists on sid: " + sid);
         }
         else if (messageType == MSG_OPEN_CHANNEL)
         {
@@ -346,9 +341,7 @@ public class WebRtcDataStreamManager
             String protocol;
 
             if (labelLength == 0)
-            {
                 label = "";
-            }
             else
             {
                 byte[] labelBytes = new byte[labelLength];
@@ -356,10 +349,9 @@ public class WebRtcDataStreamManager
                 buffer.get(labelBytes);
                 label = new String(labelBytes, "UTF-8");
             }
+
             if (protocolLength == 0)
-            {
                 protocol = "";
-            }
             else
             {
                 byte[] protocolBytes = new byte[protocolLength];
@@ -368,18 +360,15 @@ public class WebRtcDataStreamManager
                 protocol = new String(protocolBytes, "UTF-8");
             }
 
-            logger.fine("!!! " + endpointId
+            logger.debug("!!! " + endpointId
                     + " data channel open request on SID: " + sid + " type: "
                     + channelType + " prio: " + priority + " reliab: "
                     + reliability + " label: " + label + " proto: " + protocol);
 
             if (channels.containsKey(sid))
-            {
-                logger.log(Level.SEVERE, "Channel on sid: " + sid + " already exists");
-            }
+                logger.error("Channel on sid: " + sid + " already exists");
 
-            WebRtcDataStream newChannel =
-                new WebRtcDataStream(sctpSocket, sid, label, true);
+            WebRtcDataStream newChannel = new WebRtcDataStream(sctpSocket, sid, label, true);
             channels.put(sid, newChannel);
 
             sendOpenChannelAck(sid);
@@ -391,9 +380,7 @@ public class WebRtcDataStreamManager
                 listener.onChannelOpened(newChannel);
         }
         else
-        {
-            logger.log(Level.SEVERE, "Unexpected ctrl msg type: " + messageType);
-        }
+            logger.error("Unexpected ctrl msg type: " + messageType);
     }
 
     /**
@@ -512,7 +499,7 @@ public class WebRtcDataStreamManager
         int sendAck = sctpSocket.send(ack, true, sid, WebRtcDataStream.WEB_RTC_PPID_CTRL);
 
         if (sendAck != ack.length)
-            logger.log(Level.SEVERE, "Failed to send open channel confirmation");
+            logger.error("Failed to send open channel confirmation");
     }
     
     /**
@@ -541,7 +528,7 @@ public class WebRtcDataStreamManager
                 }
                 catch (IOException e)
                 {
-                    logger.log(Level.SEVERE, "IOException when processing ctrl packet", e);
+                    logger.error("IOException when processing ctrl packet", e);
                     e.printStackTrace();
                 }
             }
@@ -562,8 +549,7 @@ public class WebRtcDataStreamManager
                 }
                 catch (UnsupportedEncodingException uee)
                 {
-                    logger.log(Level.SEVERE, "Unsupported charset encoding/name "
-                        + charsetName, uee);
+                    logger.error("Unsupported charset encoding/name " + charsetName, uee);
                     str = null;
                 }
                 channel.onStringMsg(str);
@@ -579,14 +565,15 @@ public class WebRtcDataStreamManager
                 channel.onBinaryMsg(data);
             }
             else
-                logger.log(Level.WARNING, "Got message on unsupported PPID: " + ppid);
+                logger.warn("Got message on unsupported PPID: " + ppid);
         }
 
         @Override
         public void onSctpNotification(SctpSocket socket, SctpNotification notification)
         {
-        	logger.fine("socket=" + socket + "; notification=" + notification);
-            switch (notification.sn_type)
+        	logger.debug("socket=" + socket + "; notification=" + notification);
+
+        	switch (notification.sn_type)
             {
             case SctpNotification.SCTP_ASSOC_CHANGE:
                 SctpNotification.AssociationChange assocChange = (SctpNotification.AssociationChange) notification;

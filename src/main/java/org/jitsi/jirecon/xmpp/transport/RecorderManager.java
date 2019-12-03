@@ -17,14 +17,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.task;
+package org.jitsi.jirecon.xmpp.transport;
 
 import java.io.*;
 import java.util.*;
 import java.util.Map.*;
 import java.util.concurrent.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.jitsi.impl.neomedia.recording.*;
 import org.jitsi.impl.neomedia.rtp.translator.*;
@@ -33,7 +31,6 @@ import org.jitsi.jirecon.recorder.RecorderRtpImpl;
 import org.jitsi.jirecon.recorder.SynchronizerImpl;
 import org.jitsi.jirecon.xmpp.ChatRoom;
 import org.jitsi.jirecon.xmpp.Endpoint;
-import org.jitsi.jirecon.xmpp.XmppEvent.*;
 import org.jitsi.service.libjitsi.*;
 import org.jitsi.service.neomedia.*;
 import org.jitsi.service.neomedia.format.*;
@@ -42,6 +39,8 @@ import org.jitsi.utils.MediaType;
 import org.json.simple.*;
 import org.json.simple.parser.*;
 
+import net.java.sip.communicator.util.Logger;
+
  /**
  * <tt>StreamRecorderManager</tt> is used to record media
  * streams and save them into local files.
@@ -49,13 +48,13 @@ import org.json.simple.parser.*;
  * @todo Review thread safety.
  * @author lishunyang
  */
-public class StreamRecorderManager
+public class RecorderManager
 {
 
 	/**
      * The <tt>Logger</tt>, used to log messages to standard output.
      */
-    private static final Logger logger = Logger.getLogger(StreamRecorderManager.class.getName());
+    private static final Logger logger = Logger.getLogger(RecorderManager.class);
 
     /**
      * The map between <tt>MediaType</tt> and <tt>MediaStream</tt>. Those are
@@ -90,12 +89,6 @@ public class StreamRecorderManager
      * Used for handling recorder's event.
      */
     private RecorderEventHandlerImpl eventHandler;
-
-    /**
-     * The <tt>JireconTaskEventListener</tt>, if <tt>JireconRecorder</tt> has
-     * something important, it will notify them.
-     */
-    private final List<MucEventListener> listeners = new ArrayList<MucEventListener>();
 
     /**
      * Map between <tt>MediaType</tt> and local recorder's ssrc.
@@ -176,7 +169,7 @@ public class StreamRecorderManager
         @Override
         public void close()
         {
-            logger.fine("close");
+            logger.debug("close");
         }
 
         /**
@@ -195,14 +188,14 @@ public class StreamRecorderManager
                  * We have to use audio ssrc instead endpoint id to find video
                  * ssrc because of the compatibility.
                  */
-                logger.fine("SPEAKER_CHANGED audio ssrc: " + event.getAudioSsrc());
+                logger.debug("SPEAKER_CHANGED audio ssrc: " + event.getAudioSsrc());
 
                 final long audioSsrc = event.getAudioSsrc();
                 final long videoSsrc = getAssociatedSsrc(audioSsrc, MediaType.AUDIO, MediaType.VIDEO);
 
                 if (videoSsrc < 0)
                 {
-                    logger.log(Level.SEVERE, "Could not find video SSRC associated with audioSsrc=" + audioSsrc);
+                    logger.error("Could not find video SSRC associated with audioSsrc=" + audioSsrc);
 
                     // don't write events without proper 'ssrc' values
                     return false;
@@ -360,7 +353,7 @@ public class StreamRecorderManager
                         JSONObject json = (JSONObject) parser.parse(msg);
                         String endpointId = json.get("dominantSpeakerEndpoint").toString();
 
-                        logger.fine("Hey! " + endpointId);
+                        logger.debug("Hey! " + endpointId);
                         System.out.println("Event: " + msg);
                         System.out.println("Hey! " + endpointId);
 
@@ -398,7 +391,7 @@ public class StreamRecorderManager
     /**
      * Constructor
      */
-    public StreamRecorderManager(ChatRoom mucClient) {
+    public RecorderManager(ChatRoom mucClient) {
     	this.mucClient = mucClient;
 	}
 
@@ -418,7 +411,8 @@ public class StreamRecorderManager
     {
         this.mediaService = LibJitsi.getMediaService();
         this.outputDir = outputDir;
-        logger.setLevel(Level.ALL);
+
+        logger.setLevelAll();
 
         /*
          * NOTE: DtlsControl will be managed by MediaStream. So we don't need to
@@ -501,11 +495,11 @@ public class StreamRecorderManager
         try
         {
             if (!recordingFinished.createNewFile())
-                logger.log(Level.WARNING, ".recording_finished already exists");
+                logger.warn(".recording_finished already exists");
         }
         catch (IOException ioe)
         {
-            logger.log(Level.WARNING, "Failed to create .recording_finished: " + ioe);
+            logger.warn("Failed to create .recording_finished: " + ioe);
         }
 
         /*
@@ -536,7 +530,7 @@ public class StreamRecorderManager
         Map<MediaType, MediaStreamTarget> targets)
         throws Exception
     {
-        logger.fine("prepareMediaStreams");
+        logger.debug("prepareMediaStreams");
 
         for (Entry<MediaType, MediaStream> e : streams.entrySet())
         {
@@ -580,7 +574,7 @@ public class StreamRecorderManager
      */
     private void prepareRecorders() throws Exception
     {
-        logger.fine("prepareRecorders");
+        logger.debug("prepareRecorders");
 
         for (Entry<MediaType, RTPTranslator> e : rtpTranslators.entrySet())
         {
@@ -608,7 +602,7 @@ public class StreamRecorderManager
     {
         if (connector == null || streamTarget == null)
         {
-            logger.fine("Ignore data channel");
+            logger.debug("Ignore data channel");
             return;
         }
         dataChannel.connect(connector, streamTarget);
@@ -622,7 +616,7 @@ public class StreamRecorderManager
      */
     private void startReceivingStreams() throws Exception
     {
-        logger.fine("startReceiving");
+        logger.debug("startReceiving");
 
         int startCount = 0;
         for (Entry<MediaType, MediaStream> e : streams.entrySet())
@@ -684,7 +678,7 @@ public class StreamRecorderManager
      */
     private void stopRecordingStreams()
     {
-        logger.fine("Stop recording streams.");
+        logger.debug("Stop recording streams.");
         
         if (!isRecording)
             return;
@@ -701,7 +695,7 @@ public class StreamRecorderManager
      */
     private void stopReceivingStreams()
     {
-        logger.fine("Stop receiving streams");
+        logger.debug("Stop receiving streams");
         
         if (!isReceiving)
             return;
@@ -748,7 +742,7 @@ public class StreamRecorderManager
      */
     private void createMediaStreams(Map<MediaType, DtlsControl> dtlsControls)
     {
-        logger.fine("createMediaStreams");
+        logger.debug("createMediaStreams");
         
         for (MediaType mediaType : new MediaType[]{ MediaType.AUDIO, MediaType.VIDEO })
         {
@@ -817,7 +811,7 @@ public class StreamRecorderManager
             }
         }
         else
-            logger.log(Level.WARNING, "The endpoints collection is empty!");
+            logger.warn("The endpoints collection is empty!");
         return -1;
     }
 
@@ -844,7 +838,7 @@ public class StreamRecorderManager
             }
         }
         else
-            logger.log(Level.WARNING, "The endpoints collection is empty!");
+            logger.warn("The endpoints collection is empty!");
 
         return -1;
     }
@@ -869,7 +863,7 @@ public class StreamRecorderManager
             }
         }
         else
-            logger.log(Level.WARNING, "The endpoints collection is empty!");
+            logger.warn("The endpoints collection is empty!");
         return null;
     }
 
@@ -899,32 +893,6 @@ public class StreamRecorderManager
 
                 logger.info("endpoint: " + endpointId + " " + ssrc.getKey() + " " + ssrc.getValue());
             }
-        }
-    }
-
-    /**
-     * Add <tt>JireconTaskEvent</tt> listener.
-     * 
-     * @param listener
-     */
-    public void addTaskEventListener(MucEventListener listener)
-    {
-        synchronized (listeners)
-        {
-            listeners.add(listener);
-        }
-    }
-
-    /**
-     * Remove <tt>JireconTaskEvent</tt> listener.
-     * 
-     * @param listener
-     */
-    public void removeTaskEventListener(MucEventListener listener)
-    {
-        synchronized (listeners)
-        {
-            listeners.remove(listener);
         }
     }
 

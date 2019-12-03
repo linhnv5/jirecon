@@ -27,7 +27,7 @@ import org.jitsi.jirecon.utils.ConfigurationKey;
 import org.jitsi.service.configuration.ConfigurationService;
 import org.jitsi.service.libjitsi.LibJitsi;
 
-import java.util.logging.Logger;
+import net.java.sip.communicator.util.Logger;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -48,7 +48,7 @@ import org.glassfish.jersey.servlet.ServletContainer;
 public class Main
 {
 
-	private static Logger logger = Logger.getLogger(Main.class.getName());
+	private static Logger logger = Logger.getLogger(Main.class);
 
 	/**
      * Prefix of configuration parameter.

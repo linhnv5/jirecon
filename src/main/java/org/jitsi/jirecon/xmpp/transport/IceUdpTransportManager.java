@@ -17,13 +17,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.task;
+package org.jitsi.jirecon.xmpp.transport;
 
 import java.beans.*;
 import java.net.*;
 import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.ice4j.Transport;
 import org.ice4j.TransportAddress;
@@ -44,6 +42,8 @@ import org.jitsi.utils.MediaType;
 import org.jitsi.xmpp.extensions.jingle.CandidatePacketExtension;
 import org.jitsi.xmpp.extensions.jingle.IceUdpTransportPacketExtension;
 
+import net.java.sip.communicator.util.Logger;
+
 /**
  * Transport manager that under ICE/UDP protocol.
  * <p>
@@ -59,7 +59,7 @@ public class IceUdpTransportManager
     /**
      * The <tt>Logger</tt>, used to log messages to standard output.
      */
-    private static final Logger logger = Logger.getLogger(IceUdpTransportManager.class.getName());
+    private static final Logger logger = Logger.getLogger(IceUdpTransportManager.class);
 
     /**
      * The maximum time in milliseconds to wait for ICE to complete.
@@ -151,7 +151,7 @@ public class IceUdpTransportManager
      */
     public void startConnectivityEstablishment()
     {
-        logger.fine("startConnectivityEstablishment");
+        logger.debug("startConnectivityEstablishment");
 
         iceAgent.startConnectivityEstablishment();
     }
@@ -215,7 +215,7 @@ public class IceUdpTransportManager
                 }
                 catch (InterruptedException ie)
                 {
-                    logger.log(Level.SEVERE, "Interrupted: " + ie);
+                    logger.error("Interrupted: " + ie);
                     break;
                 }
             }
@@ -234,7 +234,7 @@ public class IceUdpTransportManager
     public void harvestLocalCandidates(MediaType mediaType) 
         throws Exception
     {
-        logger.fine("harvestLocalCandidates");
+        logger.debug("harvestLocalCandidates");
 
         final IceMediaStream stream = getIceMediaStream(mediaType);
 
@@ -286,7 +286,7 @@ public class IceUdpTransportManager
      */
     public void addRemoteCandidates(Map<MediaType, IceUdpTransportPacketExtension> transportPEs)
     {
-        logger.fine("harvestRemoteCandidates");
+        logger.debug("harvestRemoteCandidates");
         
         for (Map.Entry<MediaType, IceUdpTransportPacketExtension> e : transportPEs.entrySet())
         {
@@ -415,7 +415,7 @@ public class IceUdpTransportManager
      */
     public MediaStreamTarget getStreamTarget(MediaType mediaType)
     {
-        logger.fine("getStreamTarget");
+        logger.debug("getStreamTarget");
 
         if (mediaStreamTargets.containsKey(mediaType))
             return mediaStreamTargets.get(mediaType);
@@ -469,7 +469,7 @@ public class IceUdpTransportManager
 	public StreamConnector getStreamConnector(MediaType mediaType)
         throws Exception
     {
-        logger.fine("getStreamConnector " + mediaType);
+        logger.debug("getStreamConnector " + mediaType);
 
         if (streamConnectors.containsKey(mediaType))
             return streamConnectors.get(mediaType);

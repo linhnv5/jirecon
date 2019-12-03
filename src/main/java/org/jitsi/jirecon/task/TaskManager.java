@@ -21,8 +21,6 @@ package org.jitsi.jirecon.task;
 
 import java.text.*;
 import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.jitsi.jirecon.task.TaskEvent.*;
 import org.jitsi.jirecon.utils.*;
@@ -30,6 +28,8 @@ import org.jitsi.jirecon.xmpp.Xmpp;
 import org.jitsi.service.configuration.*;
 import org.jitsi.service.libjitsi.*;
 import org.jivesoftware.smack.*;
+
+import net.java.sip.communicator.util.Logger;
 
 /**
  * The manager of <tt>Task</tt>s. Each <tt>Task</tt> represents a
@@ -44,7 +44,7 @@ public final class TaskManager implements TaskEventListener
      * The <tt>Logger</tt> used by the <tt>TaskManager</tt> class and its
      * instances to print debug information.
      */
-    private static final Logger logger = Logger.getLogger(TaskManager.class.getName());
+    private static final Logger logger = Logger.getLogger(TaskManager.class);
     
     /**
      * List of <tt>EventListener</tt>.
@@ -57,7 +57,10 @@ public final class TaskManager implements TaskEventListener
      */
     private final Map<String, Task> tasks = new HashMap<String, Task>();
 
-    private Xmpp mucClientManager = new Xmpp();
+    /**
+     * Xmpp connection
+     */
+    private Xmpp xmpp = new Xmpp();
 
     /**
      * The base directory to save recording files. <tt>JireconImpl</tt> will
@@ -90,7 +93,7 @@ public final class TaskManager implements TaskEventListener
 
         if (isInitialized)
         {
-            logger.log(Level.WARNING, "Already initialized: ", new Throwable());
+            logger.warn("Already initialized: ", new Throwable());
             return;
         }
 
@@ -118,7 +121,7 @@ public final class TaskManager implements TaskEventListener
 
         try
         {
-            mucClientManager.connect(xmppHost, xmppPort, xmppDomain, xmppUser, xmppPass, mucDomain);
+            xmpp.connect(xmppHost, xmppPort, xmppDomain, xmppUser, xmppPass, mucDomain);
         }
         catch (XMPPException e)
         {
@@ -145,7 +148,7 @@ public final class TaskManager implements TaskEventListener
         logger.info("Un-initialize");
         if (!isInitialized)
         {
-            logger.log(Level.WARNING, "Not initialized: ", new Throwable());
+            logger.warn("Not initialized: ", new Throwable());
             return;
         }
 
@@ -155,7 +158,7 @@ public final class TaskManager implements TaskEventListener
                 task.uninit(true);
         }
 
-        mucClientManager.closeConnection();
+        xmpp.closeConnection();
         LibJitsi.stop();
     }
 
@@ -191,7 +194,7 @@ public final class TaskManager implements TaskEventListener
         String outputDir = baseOutputDir + "/" + mucJid + new SimpleDateFormat("-yyMMdd-HHmmss").format(new Date());
 
         task.addEventListener(this);
-        task.init(mucJid, mucClientManager, outputDir);
+        task.init(mucJid, xmpp, outputDir);
 
         task.start();
         return true;

@@ -5,8 +5,6 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
@@ -33,6 +31,8 @@ import org.jivesoftware.smack.tcp.XMPPTCPConnection;
 import org.jivesoftware.smack.tcp.XMPPTCPConnectionConfiguration;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 
+import net.java.sip.communicator.util.Logger;
+
 /**
  * Manager MultiUserChat Service <br/>
  * Join MUC, Leave MUC, ...
@@ -46,7 +46,7 @@ public final class Xmpp
      * The <tt>Logger</tt> used by the <tt>TaskManager</tt> class and its
      * instances to print debug information.
      */
-    private static final Logger logger = Logger.getLogger(TaskManager.class.getName());
+    private static final Logger logger = Logger.getLogger(TaskManager.class);
 
     /**
      * The <tt>XMPPConnection</tt> used by this <tt>MucClientManager</tt> (shared between all <tt>MucClient</tt>s).
@@ -110,7 +110,7 @@ public final class Xmpp
 
         if (true)
         {
-            logger.log(Level.WARNING, "Disabling certificate verification!");
+            logger.warn("Disabling certificate verification!");
             builder.setCustomX509TrustManager(new X509TrustManager() {
 				@Override
 				public X509Certificate[] getAcceptedIssuers() {
@@ -145,7 +145,7 @@ public final class Xmpp
             discoveryManager.addFeature(DiscoveryUtil.FEATURE_SCTP);
         }
         else
-            logger.log(Level.WARNING, "Failed to register disco#info features.");
+            logger.warn("Failed to register disco#info features.");
 
         // Reconnect automatic
         ReconnectionManager.getInstanceFor(connection).enableAutomaticReconnection();
@@ -225,6 +225,7 @@ public final class Xmpp
                 logger.info("["+packet.getClass().getName() + "]<---: " + packet);
                 System.out.println(packet.toXML());
 				ChatRoom mucClient = mucClients.get(packet.getFrom().getLocalpartOrNull().toString());
+				System.out.println(":: lp="+packet.getFrom().getLocalpartOrNull().toString()+" muc="+mucClient+" "+mucClients);
 				if (mucClient != null)
 					return mucClient.handleIQRequest(packet);
 				return null;
@@ -244,8 +245,12 @@ public final class Xmpp
     public ChatRoom joinMUC(String mucJid, String nickname) 
         throws Exception
     {
-    	ChatRoom mucClient = new ChatRoom(connection, mucJid+"@"+mucDomain, nickname);
+    	System.out.println("Add chat: "+mucJid);
+
+    	ChatRoom mucClient = new ChatRoom(connection);
     	this.mucClients.put(mucJid, mucClient);
+    	mucClient.joinMUC(mucJid+"@"+mucDomain, nickname);
+
     	return mucClient;
     }
 

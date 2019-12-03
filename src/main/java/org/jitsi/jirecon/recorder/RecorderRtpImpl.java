@@ -56,7 +56,7 @@ import org.jitsi.impl.neomedia.transform.TransformEngine;
 import org.jitsi.impl.neomedia.transform.TransformEngineChain;
 import org.jitsi.impl.neomedia.transform.fec.FECTransformEngine;
 import org.jitsi.impl.neomedia.transform.rtcp.CompoundPacketEngine;
-import org.jitsi.jirecon.task.StreamRecorderManager;
+import org.jitsi.jirecon.xmpp.transport.RecorderManager;
 import org.jitsi.service.configuration.ConfigurationService;
 import org.jitsi.service.libjitsi.LibJitsi;
 import org.jitsi.service.neomedia.MediaException;
@@ -225,7 +225,7 @@ public class RecorderRtpImpl
 	private boolean started = false;
 	private MediaStream mediaStream;
 
-	private StreamRecorderManager streamRecorderManager;
+	private RecorderManager streamRecorderManager;
 
 	/**
 	 * Constructor.
@@ -233,7 +233,7 @@ public class RecorderRtpImpl
 	 * @param translator the <tt>RTPTranslator</tt> to which this instance will
 	 *                   attach in order to record media.
 	 */
-	public RecorderRtpImpl(StreamRecorderManager streamRecorderManager, RTPTranslator translator) {
+	public RecorderRtpImpl(RecorderManager streamRecorderManager, RTPTranslator translator) {
 		this.streamRecorderManager = streamRecorderManager;
 		this.translator = (RTPTranslatorImpl) translator;
 
