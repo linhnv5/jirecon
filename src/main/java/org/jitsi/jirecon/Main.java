@@ -23,8 +23,8 @@ package org.jitsi.jirecon;
 import java.util.*;
 
 import org.jitsi.jirecon.task.TaskManager;
-import org.jitsi.jirecon.task.TaskManagerEvent;
-import org.jitsi.jirecon.task.TaskManagerEvent.*;
+import org.jitsi.jirecon.task.TaskEvent;
+import org.jitsi.jirecon.task.TaskEvent.*;
 
 
 /**
@@ -58,11 +58,11 @@ public class Main
      */
     private static Object syncRoot = new Object();
 
-    private static class MainJireconEventListener implements JireconEventListener {
+    private static class MainJireconEventListener implements TaskEventListener {
         @Override
-        public void handleEvent(TaskManagerEvent evt)
+        public void handleEvent(TaskEvent evt)
         {
-            if (evt.getType() == TaskManagerEvent.Type.TASK_ABORTED || evt.getType() == TaskManagerEvent.Type.TASK_FINISED)
+            if (evt.getType() == TaskEvent.Type.TASK_ABORTED || evt.getType() == TaskEvent.Type.TASK_FINISED)
             {
                 System.out.println("Task: " + evt.getMucJid() + " " + evt.getType());
 

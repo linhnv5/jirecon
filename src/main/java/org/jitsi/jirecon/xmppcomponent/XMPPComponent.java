@@ -24,7 +24,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.jitsi.jirecon.task.TaskManager;
-import org.jitsi.jirecon.task.TaskManagerEvent;
+import org.jitsi.jirecon.task.TaskEvent;
 import org.xmpp.component.*;
 import org.xmpp.packet.*;
 
@@ -147,7 +147,7 @@ import org.xmpp.packet.*;
  */
 public class XMPPComponent
     extends AbstractComponent
-    implements TaskManagerEvent.JireconEventListener
+    implements TaskEvent.TaskEventListener
 {
     /**
      * Logger.
@@ -305,7 +305,7 @@ public class XMPPComponent
      * started/stopped/aborted.
      */
     @Override
-    public void handleEvent(TaskManagerEvent evt)
+    public void handleEvent(TaskEvent evt)
     {
         final String mucJid = evt.getMucJid();
         RecordingSession session = null;
@@ -327,7 +327,7 @@ public class XMPPComponent
 
             IQ notification = null;
 
-            if (TaskManagerEvent.Type.TASK_ABORTED == evt.getType())
+            if (TaskEvent.Type.TASK_ABORTED == evt.getType())
             {
                 jirecon.stopJireconTask(evt.getMucJid(), false);
                 recordingSessions.remove(session);
@@ -336,7 +336,7 @@ public class XMPPComponent
                         RecordingIqUtils.Status.ABORTED.toString(),
                         session.getRid());
             }
-            else if (TaskManagerEvent.Type.TASK_FINISED == evt.getType())
+            else if (TaskEvent.Type.TASK_FINISED == evt.getType())
             {
                 jirecon.stopJireconTask(evt.getMucJid(), true);
                 recordingSessions.remove(session);
@@ -346,7 +346,7 @@ public class XMPPComponent
                         RecordingIqUtils.Status.STOPPED.toString(),
                         session.getRid());
             }
-            else if (TaskManagerEvent.Type.TASK_STARTED == evt.getType())
+            else if (TaskEvent.Type.TASK_STARTED == evt.getType())
             {
                 notification =
                     createIqSet(session,

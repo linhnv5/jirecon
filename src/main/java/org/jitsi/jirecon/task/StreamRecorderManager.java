@@ -29,9 +29,10 @@ import java.util.logging.Logger;
 import org.jitsi.impl.neomedia.recording.*;
 import org.jitsi.impl.neomedia.rtp.translator.*;
 import org.jitsi.jirecon.datachannel.*;
+import org.jitsi.jirecon.muc.Endpoint;
+import org.jitsi.jirecon.muc.MucEvent.*;
 import org.jitsi.jirecon.recorder.RecorderRtpImpl;
 import org.jitsi.jirecon.recorder.SynchronizerImpl;
-import org.jitsi.jirecon.task.TaskEvent.*;
 import org.jitsi.service.libjitsi.*;
 import org.jitsi.service.neomedia.*;
 import org.jitsi.service.neomedia.format.*;
@@ -93,7 +94,7 @@ public class StreamRecorderManager
      * The <tt>JireconTaskEventListener</tt>, if <tt>JireconRecorder</tt> has
      * something important, it will notify them.
      */
-    private final List<TaskEventListener> listeners = new ArrayList<TaskEventListener>();
+    private final List<MucEventListener> listeners = new ArrayList<MucEventListener>();
 
     /**
      * Active endpoints in the meeting currently.
@@ -869,10 +870,8 @@ public class StreamRecorderManager
         {
             if (endpoints != null && !endpoints.isEmpty())
             {
-            	System.out.println("ssrc="+ssrc);
             	for (Endpoint endpoint : endpoints)
                 {
-            		System.out.println("Endpoint: "+endpoint+" mediaType="+mediaType+" ssrc="+endpoint.getSsrc(mediaType));
                     if (endpoint.getSsrc(mediaType).contains(ssrc))
                         return endpoint.getId().toString();
                 }
@@ -929,7 +928,7 @@ public class StreamRecorderManager
      * 
      * @param listener
      */
-    public void addTaskEventListener(TaskEventListener listener)
+    public void addTaskEventListener(MucEventListener listener)
     {
         synchronized (listeners)
         {
@@ -942,7 +941,7 @@ public class StreamRecorderManager
      * 
      * @param listener
      */
-    public void removeTaskEventListener(TaskEventListener listener)
+    public void removeTaskEventListener(MucEventListener listener)
     {
         synchronized (listeners)
         {

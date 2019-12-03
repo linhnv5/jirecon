@@ -19,36 +19,43 @@
  */
 package org.jitsi.jirecon.task;
 
+import java.util.*;
+
 /**
- * Task event which can be used by <tt>JireconSession</tt> and
- * <tt>JireconRecorder</tt> to notify outside system, such as
- * <tt>JireconTask</tt>.
+ * Running event of <tt>TaskManager</tt>, which means some important things
+ * happened.
  * 
  * @author lishunyang
- * @see TaskEvent.Type
+ * 
  */
 public class TaskEvent
 {
-
-	/**
-     * Type of this event.
+    /**
+     * Event type.
      */
     private Type type;
 
     /**
+     * MUC jid, represents a JireconTask.
+     */
+    private String mucJid;
+
+    /**
      * Construction method.
      * 
-     * @param type
+     * @param source indicates where this event comes from.
+     * @param type indicates the event type.
      */
-    public TaskEvent(Type type)
+    public TaskEvent(String mucJid, Type type)
     {
+        this.mucJid = mucJid;
         this.type = type;
     }
 
     /**
      * Get event type.
      * 
-     * @return event type.
+     * @return event type
      */
     public Type getType()
     {
@@ -56,27 +63,37 @@ public class TaskEvent
     }
 
     /**
-     * <tt>JireconTaskEvent</tt> type.
+     * Get MUC jid.
+     * 
+     * @return jid of MUC.
+     */
+    public String getMucJid()
+    {
+        return mucJid;
+    }
+
+    /**
+     * <tt>JireconEvent</tt> type.
      * 
      * @author lishunyang
      * 
      */
-    public static enum Type
+    public enum Type
     {
         /**
-         * New participant came.
+         * Task started.
          */
-        PARTICIPANT_CAME("PARTICIPANT_CAME"),
+        TASK_STARTED("TASK_STARTED"),
+        
+        /**
+         * Task failed.
+         */
+        TASK_ABORTED("TASK_ABORTED"),
 
         /**
-         * One participant left.
+         * Task finished.
          */
-        PARTICIPANT_LEFT("PARTICIPANT_LEFT"),
-
-        /**
-         * Recorder has broken for some reasons.
-         */
-        RECORDER_ABORTED("RECORDER_ABORTED");
+        TASK_FINISED("TASK_FINISHED");
 
         private String name;
 
@@ -93,20 +110,19 @@ public class TaskEvent
     }
     
     /**
-     * <tt>TaskEvent</tt> listener.
+     * Listener interface of <tt>JireconEvent</tt>.
      * 
      * @author lishunyang
      * @see TaskEvent
-     * 
      */
     public interface TaskEventListener
+        extends EventListener
     {
         /**
-         * Handle the event.
+         * Handle the specified <tt>JireconEvent</tt>.
          * 
-         * @param event
+         * @param evt is the specified event.
          */
-        public void handleTaskEvent(TaskEvent event);
+        void handleEvent(TaskEvent evt);
     }
-
 }

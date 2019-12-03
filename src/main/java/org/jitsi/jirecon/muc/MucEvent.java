@@ -17,45 +17,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.task;
-
-import java.util.*;
+package org.jitsi.jirecon.muc;
 
 /**
- * Running event of <tt>TaskManager</tt>, which means some important things
- * happened.
+ * Task event which can be used by <tt>JireconSession</tt> and
+ * <tt>JireconRecorder</tt> to notify outside system, such as
+ * <tt>JireconTask</tt>.
  * 
  * @author lishunyang
- * 
+ * @see MucEvent.Type
  */
-public class TaskManagerEvent
+public class MucEvent
 {
-    /**
-     * Event type.
+
+	/**
+     * Type of this event.
      */
     private Type type;
 
     /**
-     * MUC jid, represents a JireconTask.
-     */
-    private String mucJid;
-
-    /**
      * Construction method.
      * 
-     * @param source indicates where this event comes from.
-     * @param type indicates the event type.
+     * @param type
      */
-    public TaskManagerEvent(String mucJid, Type type)
+    public MucEvent(Type type)
     {
-        this.mucJid = mucJid;
         this.type = type;
     }
 
     /**
      * Get event type.
      * 
-     * @return event type
+     * @return event type.
      */
     public Type getType()
     {
@@ -63,37 +56,27 @@ public class TaskManagerEvent
     }
 
     /**
-     * Get MUC jid.
-     * 
-     * @return jid of MUC.
-     */
-    public String getMucJid()
-    {
-        return mucJid;
-    }
-
-    /**
-     * <tt>JireconEvent</tt> type.
+     * <tt>JireconTaskEvent</tt> type.
      * 
      * @author lishunyang
      * 
      */
-    public enum Type
+    public static enum Type
     {
         /**
-         * Task started.
+         * New participant came.
          */
-        TASK_STARTED("TASK_STARTED"),
-        
-        /**
-         * Task failed.
-         */
-        TASK_ABORTED("TASK_ABORTED"),
+        PARTICIPANT_CAME("PARTICIPANT_CAME"),
 
         /**
-         * Task finished.
+         * One participant left.
          */
-        TASK_FINISED("TASK_FINISHED");
+        PARTICIPANT_LEFT("PARTICIPANT_LEFT"),
+
+        /**
+         * Recorder has broken for some reasons.
+         */
+        RECORDER_ABORTED("RECORDER_ABORTED");
 
         private String name;
 
@@ -110,19 +93,20 @@ public class TaskManagerEvent
     }
     
     /**
-     * Listener interface of <tt>JireconEvent</tt>.
+     * <tt>TaskEvent</tt> listener.
      * 
      * @author lishunyang
-     * @see TaskManagerEvent
+     * @see MucEvent
+     * 
      */
-    public interface JireconEventListener
-        extends EventListener
+    public interface MucEventListener
     {
         /**
-         * Handle the specified <tt>JireconEvent</tt>.
+         * Handle the event.
          * 
-         * @param evt is the specified event.
+         * @param event
          */
-        void handleEvent(TaskManagerEvent evt);
+        public void handleMucEvent(MucEvent event);
     }
+
 }

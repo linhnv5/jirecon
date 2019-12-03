@@ -25,7 +25,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.jitsi.jirecon.muc.MucClientManager;
-import org.jitsi.jirecon.task.TaskManagerEvent.*;
+import org.jitsi.jirecon.task.TaskEvent.*;
 import org.jitsi.jirecon.utils.*;
 import org.jitsi.service.configuration.*;
 import org.jitsi.service.libjitsi.*;
@@ -37,7 +37,7 @@ import org.jivesoftware.smack.*;
  *
  * @author lishunyang
  */
-public final class TaskManager implements JireconEventListener
+public final class TaskManager implements TaskEventListener
 {
 
     /**
@@ -49,7 +49,7 @@ public final class TaskManager implements JireconEventListener
     /**
      * List of <tt>EventListener</tt>.
      */
-    private List<JireconEventListener> listeners = new ArrayList<JireconEventListener>();
+    private List<TaskEventListener> listeners = new ArrayList<TaskEventListener>();
 
     /**
      * Maps an ID of a Jitsi Meet conference (the JID of the MUC) to the
@@ -231,7 +231,7 @@ public final class TaskManager implements JireconEventListener
      *
      * @param listener the <tt>JireconEventListener</tt> to add.
      */
-    public void addEventListener(JireconEventListener listener)
+    public void addEventListener(TaskEventListener listener)
     {
         logger.info("Adding JireconEventListener: " + listener);
         listeners.add(listener);
@@ -242,7 +242,7 @@ public final class TaskManager implements JireconEventListener
      *
      * @param listener the <tt>JireconEventListener</tt> to remove.
      */
-    public void removeEventListener(JireconEventListener listener)
+    public void removeEventListener(TaskEventListener listener)
     {
         logger.info("Removing JireconEventListener: " + listener);
         listeners.remove(listener);
@@ -251,10 +251,10 @@ public final class TaskManager implements JireconEventListener
     /**
      * {@inheritDoc}
      *
-     * Implements {@link JireconEventListener#handleEvent(TaskManagerEvent)}.
+     * Implements {@link TaskEventListener#handleEvent(TaskEvent)}.
      */
     @Override
-    public void handleEvent(TaskManagerEvent evt)
+    public void handleEvent(TaskEvent evt)
     {
         String mucJid = evt.getMucJid();
 
@@ -280,9 +280,9 @@ public final class TaskManager implements JireconEventListener
      * 
      * @param evt the event to send.
      */
-    private void fireEvent(TaskManagerEvent evt)
+    private void fireEvent(TaskEvent evt)
     {
-        for (JireconEventListener l : listeners)
+        for (TaskEventListener l : listeners)
             l.handleEvent(evt);
     }
 

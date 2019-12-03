@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jitsi.jirecon.task;
+package org.jitsi.jirecon.muc;
 
 import java.util.*;
 import org.jitsi.utils.MediaType;
@@ -66,6 +66,15 @@ public class Endpoint
     		if (listSsrc == null)
     			ssrcs.put(mediaType, listSsrc = new ArrayList<Long>());
     		listSsrc.add(ssrc);
+    	}
+    }
+
+    public void removeSsrc(MediaType mediaType, Long ssrc)
+    {
+    	if (ssrc != null) {
+    		List<Long> listSsrc = ssrcs.get(mediaType);
+    		if (listSsrc != null)
+    			listSsrc.remove(ssrc);
     	}
     }
 

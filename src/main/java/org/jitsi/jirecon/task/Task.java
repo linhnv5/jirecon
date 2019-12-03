@@ -25,10 +25,12 @@ import java.util.concurrent.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.jitsi.jirecon.muc.Endpoint;
 import org.jitsi.jirecon.muc.MucClient;
 import org.jitsi.jirecon.muc.MucClientManager;
+import org.jitsi.jirecon.muc.MucEvent;
+import org.jitsi.jirecon.muc.MucEvent.*;
 import org.jitsi.jirecon.task.TaskEvent.*;
-import org.jitsi.jirecon.task.TaskManagerEvent.*;
 import org.jitsi.jirecon.utils.*;
 import org.jitsi.service.configuration.*;
 import org.jitsi.service.libjitsi.*;
@@ -48,7 +50,7 @@ import org.jitsi.xmpp.extensions.jingle.Reason;
  * @author Boris Grozev
  * 
  */
-public class Task implements JireconEventListener, TaskEventListener, Runnable
+public class Task implements TaskEventListener, MucEventListener, Runnable
 {
 
 	/**
@@ -60,7 +62,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
      * The <tt>JireconEvent</tt> listeners, they will be notified when some
      * important things happen.
      */
-    private List<JireconEventListener> listeners = new ArrayList<JireconEventListener>();
+    private List<TaskEventListener> listeners = new ArrayList<TaskEventListener>();
 
     /**
      * MUC Manager
@@ -137,7 +139,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
              * Exception can only be thrown by Task.
              */
             stop();
-            fireEvent(new TaskManagerEvent(mucJid, TaskManagerEvent.Type.TASK_ABORTED));
+            fireEvent(new TaskEvent(mucJid, TaskEvent.Type.TASK_ABORTED));
         }
     }
 
@@ -226,7 +228,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
      * 
      * @param listener
      */
-    public void addEventListener(JireconEventListener listener)
+    public void addEventListener(TaskEventListener listener)
     {
         listeners.add(listener);
     }
@@ -236,7 +238,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
      * 
      * @param listener
      */
-    public void removeEventListener(JireconEventListener listener)
+    public void removeEventListener(TaskEventListener listener)
     {
         listeners.remove(listener);
     }
@@ -245,9 +247,9 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
      * {@inheritDoc}
      */
     @Override
-    public void handleEvent(TaskManagerEvent evt)
+    public void handleEvent(TaskEvent evt)
     {
-        for (JireconEventListener l : listeners)
+        for (TaskEventListener l : listeners)
             l.handleEvent(evt);
     }
 
@@ -255,14 +257,14 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
      * {@inheritDoc}
      */
     @Override
-    public void handleTaskEvent(TaskEvent event)
+    public void handleMucEvent(MucEvent event)
     {
         logger.info("JireconTask event: " + event.getType());
 
         System.out.println("Evt: "+event.getType());
-        if (event.getType() == TaskEvent.Type.PARTICIPANT_CAME)
+        if (event.getType() == MucEvent.Type.PARTICIPANT_CAME)
             recorderMgr.setEndpoints(mucClient.getEndpoints());
-        else if (event.getType() == TaskEvent.Type.PARTICIPANT_LEFT)
+        else if (event.getType() == MucEvent.Type.PARTICIPANT_LEFT)
         {
             List<Endpoint> endpoints = mucClient.getEndpoints();
 
@@ -272,7 +274,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
             if (endpoints.isEmpty())
             {
                 stop();
-                fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_FINISED));
+                fireEvent(new TaskEvent(this.mucJid, TaskEvent.Type.TASK_FINISED));
             }
             else
                 recorderMgr.setEndpoints(endpoints);
@@ -284,12 +286,12 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
      * 
      * @param evt is the <tt>JireconEvent</tt> you want to notify the listeners.
      */
-    private void fireEvent(TaskManagerEvent evt)
+    private void fireEvent(TaskEvent evt)
     {
-    	if (TaskManagerEvent.Type.TASK_ABORTED == evt.getType())
+    	if (TaskEvent.Type.TASK_ABORTED == evt.getType())
             isAborted = true;
 
-        for (JireconEventListener l : listeners)
+        for (TaskEventListener l : listeners)
             l.handleEvent(evt);
     }
 
@@ -328,7 +330,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
              * event.
              */
             if (!isAborted)
-                fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_FINISED));
+                fireEvent(new TaskEvent(this.mucJid, TaskEvent.Type.TASK_FINISED));
         }
     }
 
@@ -343,7 +345,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
         {
             /* 1. Join MUC. */
             mucClient = mucClientManager.joinMUC(mucJid, nickname);
-            mucClient.addTaskEventListener(this);
+            mucClient.addMucEventListener(this);
             addEventListener(mucClient);
 
             /* 2. Wait for session-init packet. */
@@ -403,7 +405,7 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
             if(!transportMgr.wrapupConnectivityEstablishment())
             {
                 logger.log(Level.SEVERE, "Failed to establish an ICE session.");
-                fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_ABORTED));
+                fireEvent(new TaskEvent(this.mucJid, TaskEvent.Type.TASK_ABORTED));
                 return;
             }
             logger.info("ICE connection established (" + this.mucJid + ")");
@@ -431,12 +433,12 @@ public class Task implements JireconEventListener, TaskEventListener, Runnable
             recorderMgr.startRecording(formatAndPTs, streamConnectors, mediaStreamTargets);
 
             /* Task started */
-            fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_STARTED));
+            fireEvent(new TaskEvent(this.mucJid, TaskEvent.Type.TASK_STARTED));
         }
         catch (Exception e)
         {
         	e.printStackTrace();
-            fireEvent(new TaskManagerEvent(this.mucJid, TaskManagerEvent.Type.TASK_ABORTED));
+            fireEvent(new TaskEvent(this.mucJid, TaskEvent.Type.TASK_ABORTED));
         }
     }
 

@@ -24,11 +24,9 @@ import java.util.*;
 import net.java.sip.communicator.util.*;
 
 import org.jitsi.impl.neomedia.format.MediaFormatFactoryImpl;
-import org.jitsi.jirecon.task.Endpoint;
+import org.jitsi.jirecon.muc.MucEvent.MucEventListener;
 import org.jitsi.jirecon.task.TaskEvent;
 import org.jitsi.jirecon.task.TaskEvent.TaskEventListener;
-import org.jitsi.jirecon.task.TaskManagerEvent;
-import org.jitsi.jirecon.task.TaskManagerEvent.JireconEventListener;
 import org.jitsi.service.libjitsi.*;
 import org.jitsi.service.neomedia.*;
 import org.jitsi.service.neomedia.format.*;
@@ -72,7 +70,7 @@ import org.jxmpp.jid.parts.Resourcepart;
  * @author Boris Grozev
  * 
  */
-public final class MucClient implements JireconEventListener
+public final class MucClient implements TaskEventListener
 {
 
 	/**
@@ -100,7 +98,7 @@ public final class MucClient implements JireconEventListener
      * The <tt>JireconTaskEventListener</tt>, if <tt>JireconRecorder</tt> has
      * something important, it will notify them.
      */
-    private final List<TaskEventListener> listeners = new ArrayList<TaskEventListener>();
+    private final List<MucEventListener> listeners = new ArrayList<MucEventListener>();
 
     /**
      * The instance of a <tt>MultiUserChat</tt>. <tt>JireconSessionImpl</tt>
@@ -293,6 +291,7 @@ public final class MucClient implements JireconEventListener
 		if (iqRequest instanceof JingleIQ) {
 			JingleIQ iq = (JingleIQ)iqRequest;
 
+			List<ContentPacketExtension> listContent;
 			switch (iq.getAction()) {
 				case SESSION_INITIATE:
 					initJingleSession(initIQ = iq);
@@ -303,6 +302,15 @@ public final class MucClient implements JireconEventListener
 					break;
 				case ADDSOURCE:
 				case SOURCEADD:
+			        listContent = iq.getContentList();
+			        for (ContentPacketExtension content : listContent)
+			        	this.addSource(content);
+					break;
+				case REMOVESOURCE:
+				case SOURCEREMOVE:
+			        listContent = iq.getContentList();
+			        for (ContentPacketExtension content : listContent)
+			        	this.removeSource(content);
 					break;
 				default:
 					break;
@@ -390,6 +398,48 @@ public final class MucClient implements JireconEventListener
 		return iceTransports;
 	}
 
+	/**
+	 * Add source to endpoint
+	 * @param content
+	 */
+	private void addSource(ContentPacketExtension content) {
+    	MediaType mediaType = JingleUtils.getMediaType(content);
+        RtpDescriptionPacketExtension rtpDescriptionPacketExtension = JingleUtils.getRtpDescription(content);
+    	if (rtpDescriptionPacketExtension != null) {
+            //
+            List<Source> sources = rtpDescriptionPacketExtension.getChildExtensionsOfType(Source.class);
+            for (Source source : sources)
+            {
+            	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
+            	if (ssrcInfo != null)
+            		getOrCreateEndpoint(ssrcInfo.getOwner()).addSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            }
+    	}
+	}
+
+	/**
+	 * Remove source to endpoint
+	 * @param content
+	 */
+	private void removeSource(ContentPacketExtension content) {
+    	MediaType mediaType = JingleUtils.getMediaType(content);
+        RtpDescriptionPacketExtension rtpDescriptionPacketExtension = JingleUtils.getRtpDescription(content);
+    	if (rtpDescriptionPacketExtension != null) {
+            //
+            List<Source> sources = rtpDescriptionPacketExtension.getChildExtensionsOfType(Source.class);
+            for (Source source : sources)
+            {
+            	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
+            	if (ssrcInfo != null)
+            		getOrCreateEndpoint(ssrcInfo.getOwner()).removeSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            }
+    	}
+	}
+
+	/**
+	 * Init jvb session
+	 * @param initIq
+	 */
     private void initJingleSession(JingleIQ initIq) {
         sid = initIq.getSID();
         localFullJid  = initIq.getTo();
@@ -423,17 +473,11 @@ public final class MucClient implements JireconEventListener
                     if (format != null)
                     	mapMediaFormat.put(format, (byte) (payloadTypePacketExt.getID()));
                 }
-
-                //
-                List<Source> sources = rtpDescriptionPacketExtension.getChildExtensionsOfType(Source.class);
-                for (Source source : sources)
-                {
-                	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
-                	if (ssrcInfo != null)
-                		getOrCreateEndpoint(ssrcInfo.getOwner()).addSsrc(mediaType, Long.valueOf(source.getSSRC()));
-                }
         	}
             formatAndPTs.put(mediaType, mapMediaFormat);
+
+            // Add source
+            addSource(contentPacketExtension);
 
             //
             IceUdpTransportPacketExtension iceUdpTransportPacketExtension = contentPacketExtension.getFirstChildOfType(IceUdpTransportPacketExtension.class);
@@ -474,7 +518,12 @@ public final class MucClient implements JireconEventListener
         if (p.getType() == Presence.Type.unavailable)
         {
             removeEndpoint(participantJid);
-            fireEvent(new TaskEvent(TaskEvent.Type.PARTICIPANT_LEFT));
+            fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_LEFT));
+        }
+        else
+        {
+        	getOrCreateEndpoint(participantJid);
+            fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_CAME));
         }
     }
     
@@ -644,7 +693,7 @@ public final class MucClient implements JireconEventListener
         return description;
     }
     
-    public void addTaskEventListener(TaskEventListener listener)
+    public void addMucEventListener(MucEventListener listener)
     {
         synchronized (listeners)
         {
@@ -652,7 +701,7 @@ public final class MucClient implements JireconEventListener
         }
     }
 
-    public void removeTaskEventListener(TaskEventListener listener)
+    public void removeTaskEventListener(MucEventListener listener)
     {
         synchronized (listeners)
         {
@@ -666,12 +715,12 @@ public final class MucClient implements JireconEventListener
      * 
      * @param event
      */
-    private void fireEvent(TaskEvent event)
+    private void fireEvent(MucEvent event)
     {
         synchronized (listeners)
         {
-            for (TaskEventListener l : listeners)
-                l.handleTaskEvent(event);
+            for (MucEventListener l : listeners)
+                l.handleMucEvent(event);
         }
     }
     
@@ -682,12 +731,12 @@ public final class MucClient implements JireconEventListener
      * @param evt is the specified event.
      */
     @Override
-    public void handleEvent(TaskManagerEvent evt)
+    public void handleEvent(TaskEvent evt)
     {
-        TaskManagerEvent.Type type = evt.getType();
-        if (TaskManagerEvent.Type.TASK_STARTED.equals(type))
+        TaskEvent.Type type = evt.getType();
+        if (TaskEvent.Type.TASK_STARTED.equals(type))
             sendRecordingOnPresence();
-        else if (TaskManagerEvent.Type.TASK_ABORTED.equals(type) || TaskManagerEvent.Type.TASK_FINISED.equals(type))
+        else if (TaskEvent.Type.TASK_ABORTED.equals(type) || TaskEvent.Type.TASK_FINISED.equals(type))
             sendRecordingOffPresence();
     }
 
@@ -751,7 +800,6 @@ public final class MucClient implements JireconEventListener
             {
                 logger.info("Add Endpoint " + jid);
             	endpoints.put(jid, endpoint = new Endpoint(jid));
-            	fireEvent(new TaskEvent(TaskEvent.Type.PARTICIPANT_CAME));
             }
             return endpoint;
         }

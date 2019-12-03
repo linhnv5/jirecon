@@ -724,7 +724,6 @@ public class RecorderRtpImpl
 			boolean audio = desc.format instanceof AudioFormat;
 			String suffix = audio ? AUDIO_FILENAME_SUFFIX : VIDEO_FILENAME_SUFFIX;
 
-			System.out.println("Source=" + ev.getSource().getClass().getName() + " " + ev.getSource());
 			String filename = getNextFilename(path, ssrc, audio, suffix);
 			desc.filename = filename;
 
