@@ -20,11 +20,17 @@
 
 package org.jitsi.jirecon;
 
-import java.util.*;
-
+import org.jitsi.jirecon.api.http.HttpApi;
 import org.jitsi.jirecon.task.TaskManager;
-import org.jitsi.jirecon.task.TaskEvent;
-import org.jitsi.jirecon.task.TaskEvent.*;
+import org.jitsi.jirecon.utils.ConfigurationKey;
+import org.jitsi.service.configuration.ConfigurationService;
+import org.jitsi.service.libjitsi.LibJitsi;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
+import org.glassfish.jersey.jackson.JacksonFeature;
+import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.servlet.ServletContainer;
 
 
 /**
@@ -49,43 +55,14 @@ public class Main
     private static String conf;
 
     /**
-     * The number of recording task.
-     */
-    private static int taskCount;
-
-    /**
-     * Sync object
-     */
-    private static Object syncRoot = new Object();
-
-    private static class MainJireconEventListener implements TaskEventListener {
-        @Override
-        public void handleEvent(TaskEvent evt)
-        {
-            if (evt.getType() == TaskEvent.Type.TASK_ABORTED || evt.getType() == TaskEvent.Type.TASK_FINISED)
-            {
-                System.out.println("Task: " + evt.getMucJid() + " " + evt.getType());
-
-                if (--taskCount == 0)
-                {
-                    synchronized (syncRoot)
-                    {
-                        syncRoot.notifyAll();
-                    }
-                }
-            }
-        }
-    }
-   
-    /**
      * Application entry.
      * 
      * @param args <tt>JireconLauncher</tt> only cares about two arguments:
      *            <p>
-     *            1. --conf=CONFIGURATION FILE PATH. Indicate the path of
+     *            1. --conf=CONFIGURATION_FILE_PATH. Indicate the path of
      *            configuration file.
      *            <p>
-     *            2. --time=RECORDING SECONDS. Indicate how many seconds will
+     *            2. --time=RECORDING_SECONDS. Indicate how many seconds will
      *            the recording task last. If you didn't specify this parameter,
      *            Jirecon will continue recording forever unless all
      *            participants has left the meeting.
@@ -93,36 +70,26 @@ public class Main
     public static void main(String[] args)
     {
         conf = null;
-        List<String> mucJids = new ArrayList<String>();
 
         for (String arg : args)
         {
             if (arg.startsWith(CONF_ARG_NAME))
                 conf = arg.substring(CONF_ARG_NAME.length());
-            else
-                mucJids.add(arg);
         }
 
-        // Debug
-        if (mucJids.size() == 0)
-        	mucJids.add("testroom");
-
-        // no task ?
-        if ((taskCount = mucJids.size()) == 0)
-        {
-            System.out.println("You have to specify at least one conference jid to record, exit.");
-            return;
-        }
         if (conf == null)
             conf = "jirecon.properties";
 
-        final TaskManager jirecon = new TaskManager();
-        
-        jirecon.addEventListener(new MainJireconEventListener());
+        TaskManager jirecon = TaskManager.gI();
+
+        LibJitsi.start();
+
+        System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_NAME, conf);
+        System.setProperty(ConfigurationService.PNAME_CONFIGURATION_FILE_IS_READ_ONLY, "true");
 
         try
         {
-            jirecon.init(conf);
+            jirecon.init();
         }
         catch (Exception e)
         {
@@ -130,26 +97,29 @@ public class Main
             return;
         }
 
-        for (String jid : mucJids)
-            jirecon.startJireconTask(jid);
+        ConfigurationService cfg = LibJitsi.getConfigurationService();
 
-        try
-        {
-            synchronized (syncRoot)
-            {
-                syncRoot.wait();
-            }
-        }
-        catch (InterruptedException e)
-        {
-            e.printStackTrace();
-        }
+    	int httpApiPort = cfg.getInt(ConfigurationKey.HTTP_PORT, 2323);
+    	System.out.println("Using port "+httpApiPort+" for the HTTP API");
 
-        for (String jid : mucJids)
-            jirecon.stopJireconTask(jid, true);
+    	try {
+			launchHttpServer(httpApiPort, new HttpApi());
+		} catch (Exception e) {
+		}
+    }
 
-        jirecon.uninit();
-        System.out.println("JireconLauncher exit.");
+    private static void launchHttpServer(int port, Object component)
+    		throws Exception
+    {
+    	ResourceConfig jerseyConfig = new ResourceConfig();
+    	jerseyConfig.register(JacksonFeature.class);
+    	jerseyConfig.registerInstances(component);
+
+    	ServletHolder servlet = new ServletHolder(new ServletContainer(jerseyConfig));
+    	Server server = new Server(port);
+    	ServletContextHandler context = new ServletContextHandler(server, "/*");
+    	context.addServlet(servlet, "/*");
+    	server.start();
     }
 
 }

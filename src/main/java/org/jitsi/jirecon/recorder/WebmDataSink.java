@@ -33,7 +33,10 @@ import java.io.*;
  *
  * @author Boris Grozev
  */
-public class WebmDataSink implements DataSink, BufferTransferHandler {
+public class WebmDataSink
+	implements DataSink, BufferTransferHandler
+{
+
 	/**
 	 * The <tt>Logger</tt> used by the <tt>WebmDataSink</tt> class and its instances
 	 * for logging output.
@@ -130,7 +133,7 @@ public class WebmDataSink implements DataSink, BufferTransferHandler {
 	private static String AUTO_REQUEST_KEYFRAME_PNAME = WebmDataSink.class.getCanonicalName() + ".AUTOKEYFRAME";
 	private int autoKeyframeRequestInterval = 0;
 
-	/**
+    /**
 	 * Initialize a new <tt>WebmDataSink</tt> instance.
 	 * 
 	 * @param filename   the name of the file into which to write.

@@ -261,12 +261,15 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
         System.out.println("Evt: "+event.getType());
         switch (event.getType()) {
         	case SOURCE_ADD:
-        	case SOURCE_REMOVE:
                 recorderMgr.updateSynchronizers();
                 break;
 
-        	case PARTICIPANT_LEFT:
+        	case SOURCE_REMOVE:
+                recorderMgr.updateSynchronizers();
+
                 Collection<Endpoint> endpoints = mucClient.getEndpoints();
+
+                System.out.println("Endpoints: "+endpoints);
 
                 // Oh, it seems that all participants have left the MUC(except Jirecon
                 // or other participants which only receive data). It's time to
@@ -320,10 +323,18 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
 
             logger.info(this.getClass() + " stop.");
 
-            mucClient.disconnect(Reason.SUCCESS, "OK, gotta go.");
-            mucClientManager.leaveMUC(mucJid);
             transportMgr.free();
-            recorderMgr.stopRecording();
+
+            if (mucClient != null)
+            {
+                mucClient.disconnect(Reason.SUCCESS, "OK, gotta go.");
+                mucClientManager.leaveMUC(mucJid);
+            }
+
+            if (recorderMgr != null)
+            {
+            	recorderMgr.stopRecording();
+            }
 
             /*
              * We should only fire TASK_FINISHED event when the task has really
@@ -351,13 +362,13 @@ public class Task implements TaskEventListener, MucEventListener, Runnable
             addEventListener(mucClient);
 
             /* 2. Init recorder manager */
-            recorderMgr    = new StreamRecorderManager(mucClient);
+            recorderMgr = new StreamRecorderManager(mucClient);
             recorderMgr.addTaskEventListener(this);
             recorderMgr.init(outputDir, dtlsControlMgr.getAllDtlsControl());
 
             /* 3. Wait for session-init packet. */
             mucClient.waitForInitPacket();
-            
+
             List <MediaType> supportedMediaTypes = mucClient.getSupportedMediaTypes();
 
             /*

@@ -40,7 +40,7 @@ public class Endpoint
      */
     private Jid id;
 
-    /**
+	/**
      * Map between <tt>MediaType</tt> and ssrc. Notice that only audio or video has ssrc.
      */
     private Map<MediaType, List<Long>> ssrcs = new HashMap<MediaType, List<Long>>();
@@ -59,7 +59,7 @@ public class Endpoint
         return id;
     }
 
-    public void addSsrc(MediaType mediaType, Long ssrc)
+	public void addSsrc(MediaType mediaType, Long ssrc)
     {
     	if (ssrc != null) {
     		List<Long> listSsrc = ssrcs.get(mediaType);
@@ -86,6 +86,11 @@ public class Endpoint
     public List<Long> getSsrc(MediaType mediaType)
     {
         return ssrcs.get(mediaType);
+    }
+
+    @Override
+    public String toString() {
+    	return this.id.toString();
     }
 
 }

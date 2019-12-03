@@ -89,4 +89,9 @@ public class ConfigurationKey
      */
     public final static String MAX_STREAM_PORT_KEY = PREFIX + ".MAX_STREAM_PORT";
 
+    /**
+     * Port of http service
+     */
+    public final static String HTTP_PORT = PREFIX + ".HTTP_PORT";
+
 }

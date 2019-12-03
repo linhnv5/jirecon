@@ -46,7 +46,7 @@ public class WebmWriter
      */
     public static int FLAG_FRAME_IS_INVISIBLE = 0x04;
 
-    private static String av_err2str(int errnum) {
+    public static String av_err2str(int errnum) {
 		BytePointer data = new BytePointer(new byte[AV_ERROR_MAX_STRING_SIZE]);
 		av_make_error_string(data, AV_ERROR_MAX_STRING_SIZE, errnum);
 		return data.getString();

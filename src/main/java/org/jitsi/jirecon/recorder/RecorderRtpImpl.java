@@ -742,6 +742,7 @@ public class RecorderRtpImpl
 
 			if (logger.isInfoEnabled())
 				logger.info("Created DataSink (" + dataSink + ") for SSRC=" + ssrc + ". Output filename: " + filename);
+
 			try {
 				dataSink.open();
 			} catch (IOException e) {
@@ -751,7 +752,7 @@ public class RecorderRtpImpl
 			}
 
 			if (!audio) {
-				final WebmDataSink webmDataSink = (WebmDataSink) dataSink;
+				WebmDataSink webmDataSink = (WebmDataSink) dataSink;
 				webmDataSink.setSsrc(ssrc);
 				webmDataSink.setEventHandler(eventHandler);
 				webmDataSink.setKeyFrameControl(new KeyFrameControlAdapter() {

@@ -58,6 +58,7 @@ import org.jivesoftware.smack.packet.XMPPError.Condition;
 import org.jivesoftware.smackx.muc.*;
 import org.jivesoftware.smackx.muc.packet.MUCUser;
 import org.jivesoftware.smackx.nick.packet.Nick;
+import org.jxmpp.jid.EntityBareJid;
 import org.jxmpp.jid.Jid;
 import org.jxmpp.jid.impl.JidCreate;
 import org.jxmpp.jid.parts.Localpart;
@@ -151,10 +152,16 @@ public final class MucClient implements TaskEventListener
      * @param nickname The name in MUC.
      * @throws Exception if failed to join MUC.
      */
-    private void joinMUC(final String mucJid, String nickname)
+    private void joinMUC(String mucJid, String nickname)
         throws Exception
     {
         logger.info("Joining MUC...");
+
+        // muc manager
+        MultiUserChatManager mucManager = MultiUserChatManager.getInstanceFor(connection);
+
+        // Room id
+        final EntityBareJid room = JidCreate.entityBareFrom(mucJid);
 
         /*
          * Register the receiving packet listener to handle presence packet.
@@ -164,7 +171,6 @@ public final class MucClient implements TaskEventListener
             @Override
             public void processStanza(Stanza packet)
             {
-                logger.info(packet.getClass() + "<---: " + packet);
                 if (packet instanceof Presence)
                 	handlePresencePacket((Presence) packet);
             }
@@ -175,14 +181,12 @@ public final class MucClient implements TaskEventListener
             public boolean accept(Stanza packet)
             {
             	Localpart localpart;
-            	return (localpart = packet.getFrom().getLocalpartOrNull()) != null && mucJid.equals(localpart.toString());
+            	return (localpart = packet.getFrom().getLocalpartOrNull()) != null && localpart.equals(room.getLocalpartOrNull());
             }
         });
 
-        MultiUserChatManager mucManager = MultiUserChatManager.getInstanceFor(connection);
-
         //
-        muc = mucManager.getMultiUserChat(JidCreate.entityBareFrom(mucJid));
+        muc = mucManager.getMultiUserChat(room);
         int suffix = 1;
         String finalNickname = nickname;
         while (true)
@@ -413,9 +417,10 @@ public final class MucClient implements TaskEventListener
             for (Source source : sources)
             {
             	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
-            	if (ssrcInfo != null) {
+            	if (ssrcInfo != null && !ssrcInfo.getOwner().toString().equals("jvb")) {
             		System.out.println("Add Source: "+source.getSSRC()+" id="+ssrcInfo.getOwner());
-            		getEndpoint(ssrcInfo.getOwner()).addSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            		Endpoint endpoint = getEndpoint(ssrcInfo.getOwner());
+            		endpoint.addSsrc(mediaType, Long.valueOf(source.getSSRC()));
             	}
             }
     	}
@@ -436,7 +441,10 @@ public final class MucClient implements TaskEventListener
             	SSRCInfoPacketExtension ssrcInfo = source.getFirstChildOfType(SSRCInfoPacketExtension.class);
             	if (ssrcInfo != null) {
             		System.out.println("Remove Source: "+source.getSSRC()+" id="+ssrcInfo.getOwner());
-            		getEndpoint(ssrcInfo.getOwner()).removeSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            		Endpoint endpoint = getEndpoint(ssrcInfo.getOwner());
+            		endpoint.removeSsrc(mediaType, Long.valueOf(source.getSSRC()));
+            		if (endpoint.getSsrcs().isEmpty())
+            			removeEndpoint(ssrcInfo.getOwner());
             	}
             }
     	}
@@ -518,19 +526,17 @@ public final class MucClient implements TaskEventListener
         if (participantJid == null)
             return;
 
-        System.out.println("Join: "+participantJid);
-
         // Oh, it seems that some participant has left the MUC.
         if (p.getType() == Presence.Type.unavailable)
         {
-            removeEndpoint(participantJid);
+        	removeParticipant(participantJid);
             fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_LEFT));
         }
-//        else
-//        {
-//        	getEndpoint(participantJid);
-//            fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_CAME));
-//        }
+        else
+        {
+        	addParticipant(participantJid, p.getFrom());
+            fireEvent(new MucEvent(MucEvent.Type.PARTICIPANT_CAME));
+        }
     }
     
     /**
@@ -831,6 +837,16 @@ public final class MucClient implements TaskEventListener
         {
             endpoints.remove(jid);
         }
+    }
+
+    private void addParticipant(Jid jid, Jid bareId)
+    {
+        logger.info("Add Participant " + jid);
+    }
+
+    private void removeParticipant(Jid jid)
+    {
+        logger.info("Remove Participant " + jid);
     }
 
 }
