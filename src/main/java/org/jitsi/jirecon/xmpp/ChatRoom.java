@@ -87,9 +87,14 @@ public final class ChatRoom implements TaskEventListener
     Localpart localpart;
 
     /**
+     * Participant in the meeting
+     */
+    final Map<Jid, Participant> participants = new HashMap<Jid, Participant>();
+
+    /**
      * <tt>Endpoint</tt>s in the meeting.
      */
-    final Map<Jid, Endpoint> endpoints = new HashMap<Jid, Endpoint>();
+    final Map<EntityFullJid, Endpoint> endpoints = new HashMap<EntityFullJid, Endpoint>();
 
     /**
      * Packet listening for precence packet handle
@@ -347,7 +352,12 @@ public final class ChatRoom implements TaskEventListener
         else
         {
         	System.out.println(participantJid+" came!");
-        	addParticipant(participantJid, p.getFrom().asEntityFullJidIfPossible());
+        	Participant pa = addParticipant(participantJid);
+        	pa.setOccupantJid(p.getFrom().asEntityFullJidIfPossible());
+        	
+        	Nick nick = (Nick) p.getExtension(Nick.ELEMENT_NAME, Nick.NAMESPACE);
+        	if (nick != null)
+        		pa.setNickName(nick.getName());
         }
     }
 
@@ -418,14 +428,39 @@ public final class ChatRoom implements TaskEventListener
         }
     }
 
-    private void addParticipant(Jid jid, EntityFullJid occupantJid)
+    private Participant addParticipant(Jid jid)
     {
         logger.info("Add Participant " + jid);
+
+        Participant p;
+        synchronized (participants)
+        {
+            participants.put(jid, p = new Participant(jid));
+		}
+        return p;
     }
 
     private void removeParticipant(Jid jid)
     {
         logger.info("Remove Participant " + jid);
+
+        synchronized (participants)
+        {
+            participants.remove(jid);
+		}
+    }
+
+    Participant getParticipantForEndPoint(Endpoint endpoint)
+    {
+        synchronized (participants)
+        {
+        	for (Map.Entry<Jid, Participant> entry : participants.entrySet())
+        	{
+        		if (endpoint.getId().equals(entry.getValue().getOccupantJid()))
+        			return entry.getValue();
+        	}
+		}
+		return null;
     }
 
     /**

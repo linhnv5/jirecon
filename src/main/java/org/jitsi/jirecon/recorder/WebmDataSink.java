@@ -329,6 +329,7 @@ public class WebmDataSink
 						RecorderEvent event = new RecorderEvent();
 						event.setType(RecorderEvent.Type.RECORDING_STARTED);
 						event.setSsrc(ssrc);
+
 						if (height * 4 == width * 3)
 							event.setAspectRatio(RecorderEvent.AspectRatio.ASPECT_RATIO_4_3);
 						else if (height * 16 == width * 9)

@@ -113,8 +113,7 @@ public class RecorderRtpImpl
 
 	private static final Format vp8RtpFormat = new VideoFormat(Constants.VP8_RTP);
 	private static final Format vp8Format = new VideoFormat(Constants.VP8);
-	private static final Format opusFormat = new AudioFormat(Constants.OPUS_RTP, 48000, Format.NOT_SPECIFIED,
-			Format.NOT_SPECIFIED);
+	private static final Format opusFormat = new AudioFormat(Constants.OPUS_RTP, 48000, Format.NOT_SPECIFIED, Format.NOT_SPECIFIED);
 
 	/**
 	 * Config parameter for FMJ video jitter size
@@ -147,7 +146,7 @@ public class RecorderRtpImpl
 	/**
 	 * The <tt>ContentDescriptor</tt> to use when saving audio.
 	 */
-	private static ContentDescriptor AUDIO_CONTENT_DESCRIPTOR = new ContentDescriptor(FileTypeDescriptor.MPEG_AUDIO);
+	private static ContentDescriptor AUDIO_CONTENT_DESCRIPTOR = new ContentDescriptor(FileTypeDescriptor.WAVE);//.MPEG_AUDIO);
 
 	/**
 	 * The suffix for audio file names.
@@ -246,7 +245,7 @@ public class RecorderRtpImpl
 			String audioCodec = cfg.getString(AUDIO_CODEC_PNAME);
 			if ("wav".equalsIgnoreCase(audioCodec)) {
 				AUDIO_FILENAME_SUFFIX = ".wav";
-				AUDIO_CONTENT_DESCRIPTOR = new ContentDescriptor(FileTypeDescriptor.WAVE);
+//				AUDIO_CONTENT_DESCRIPTOR = new ContentDescriptor(FileTypeDescriptor.WAVE);
 			}
 		}
 
@@ -729,14 +728,18 @@ public class RecorderRtpImpl
 
 			DataSink dataSink;
 			if (audio) {
-				try {
-					dataSink = Manager.createDataSink(desc.dataSource, new MediaLocator("file:" + filename));
-				} catch (NoDataSinkException ndse) {
-					logger.error("Could not create DataSink: " + ndse);
-					removeReceiveStream(desc, false);
-					return;
+				if (AUDIO_FILENAME_SUFFIX.equals(".wav"))
+				{
+					try {
+						dataSink = Manager.createDataSink(desc.dataSource, new MediaLocator("file:" + filename));
+					} catch (NoDataSinkException ndse) {
+						logger.error("Could not create DataSink: " + ndse);
+						removeReceiveStream(desc, false);
+						return;
+					}
 				}
-
+				else
+					dataSink = new Mp3DataSink(filename, desc.dataSource);
 			} else
 				dataSink = new WebmDataSink(filename, desc.dataSource);
 
